@@ -6,7 +6,7 @@
 position=400						#for certain point in time
 
 #specify reference detector position [cm]
-Refdec=1.2				# Take care in Block-Case
+Refdec=2.2				# Take care in Block-Case
 
 # specify number of timesteps around a blob, in which a second event is not counted as another blob:
 WinBar = 15

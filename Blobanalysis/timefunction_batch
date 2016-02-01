@@ -1,5 +1,5 @@
 # !/bin/bash 
-#$ -l h_rt=2:00:00 -l h_vmem=32000M
+#$ -l h_rt=11:00:00 -l h_vmem=32000M
 #$ -cwd
 ### -m e
 #$ -o tfunc.log

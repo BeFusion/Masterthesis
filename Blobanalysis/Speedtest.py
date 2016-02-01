@@ -7,6 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 #from sympy import *
 from pylab import plot
+import matplotlib
 import matplotlib.gridspec as gridspec		# define layout of grid
 from mpl_toolkits.axes_grid1 import make_axes_locatable # for colorbars
 from scipy import ndimage			# calculate com
@@ -68,8 +69,8 @@ ax6 = plt.subplot(gs[6])	# fB freq
 # create a list in for simple modifications on all plots at the same time:
 allax=[ax1,ax2,ax3,ax4,ax5,ax6,ax7]
 
-font = {'family' :'normal', 'weight' : 'bold', 'size' : 22}
-maplotlib.rc('font', **font)
+font = {'family' :'normal', 'weight' : 'regular', 'size' : 16}
+matplotlib.rc('font', **font)
 
 # Plots ############################################################################################################
 

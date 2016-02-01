@@ -5,6 +5,7 @@
 ########### Importing modules ###########################################################################
 
 import numpy as np
+import matplotlib
 import matplotlib.pyplot as plt
 #from sympy import *
 from pylab import plot
@@ -208,6 +209,8 @@ ax4 = plt.subplot(gs[3])
 # create a list in for simple modifications on all plots at the same time:
 allax=[ax1,ax2,ax3,ax4]
 
+font = {'family' :'normal', 'weight' : 'regular', 'size' : 16}
+matplotlib.rc('font', **font)
 
 # AX1: Density PLOT ############################################################################################################
 
@@ -416,8 +419,7 @@ if (Standardblob==True and BlobCount>0):				# only occurs if switch is on and if
 	for m in range (0,len(x)):
 		for l in range (0, int(TWind/avt)):
 			LiConAv[l,m] = np.mean(LiConBlo[:,l,m])	 # calculate the values for the standard blob and put in array
-			l=l+1
-		m=m+1
+
 
 	Delt=[None]*int(TWind/avt)				# create emty list for standard blob time window
 
