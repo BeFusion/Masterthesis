@@ -3,4 +3,7 @@
 *.txt
 *~
 *bak*
-
+*swp
+*swn
+*.err
+*.log

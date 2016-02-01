@@ -1,0 +1,226 @@
+#!/usr/bin/env python
+
+import numpy as np
+import matplotlib.pyplot as plt
+from pylab import plot
+import matplotlib.gridspec as gridspec
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+from hdf5_read import Li_read_hdf5
+
+
+# use pdb for debugging:
+#import pdb
+#pdb.set_trace()
+
+
+########### READING DATA AND PRELIMINARY STATEMENTS ###########################################################################
+
+
+#specify timepoint for snapshot [in multiples of timesteps used for simula calling]:
+position=70						#for certain point in time
+
+#specify reference detector position [cm]:
+Refdec=5
+
+# specify beam width
+b=1.2							
+
+
+#read in data from hdf5-file via external function
+time, x, y, ne, LiTemp, Li2p1 = Li_read_hdf5('ASDEX.001_test5.h5')
+
+# calculate time in [us] for snapshots:
+point=position*(time[11]-time[10])
+
+
+#lengthes used:
+mn=len(x)
+stepsize=len(y)
+timestep=len(time)
+avy=y[stepsize-1]/stepsize
+
+
+
+#define center of beam and shift:
+bcenter=1					# define beam center position on y-axis [cm]
+shift=int(bcenter/y[-1]*stepsize/2)+1		# shift in order to place the center at correct position
+print('Position des Beams: ', y[shift*2])
+
+#print('number of steps in x-direction:', mn)		# mn = 434 and number of steps in x-direction from 0cm to 11.22cm
+#print('number of steps in y-directino:', stepsize)# stepsize = 109 and number of y-steps
+#print('number of timesteps', timestep)			# timestep = 21
+
+#import pdb
+#pdb.set_trace()
+#ne=ne.reshape(timestep,stepsize,mn)			# density as a 3D array with stepsize (number of y-steps) and timestep timepoints
+							# .. and mn (number of x positions) rows
+#Li2p1=np.reshape(Li2p0, [timestep,stepsize,mn])		# Li2p as a 3D array with stepsize (number of y-steps) lines and timestep timepoints
+							# ..and mn (number of x positions) rows
+
+
+#Meshgrid for 2D plots:
+X,Y=np.meshgrid(x,y)					# transform x,y-axis in matrix for contourf-plot
+
+#Meshgrid for timeplots:
+X2,T2=np.meshgrid(x,time)
+
+##################################################################################################################################
+
+
+
+
+########### INITIALIZATION OF PLOTS AND CREATING SUBPLOTS 1 & 2 ##################################################################
+
+
+
+# create fiugre with certain ratio and facecolor:
+f1=plt.figure(figsize=(8,8), facecolor = 'white')
+gs = gridspec.GridSpec(4, 1,				# ratio of grid space (2 plots per collumn, 3 per row)
+                       width_ratios=[1],		# width ratios of the 3 plots per row
+                       height_ratios=[1,1,1,1]		# height ratios of the 2 polots per collumn
+                       )
+
+#define limits for plots
+xmin=0.0
+xmax=2.2
+ymin=0
+ymax=8
+
+
+# create axes with the ratios specified in gs above. ax5, ax6 are the axes for the colorbars:
+ax1 = plt.subplot(gs[0])
+ax2 = plt.subplot(gs[1])
+ax3 = plt.subplot(gs[2])
+ax4 = plt.subplot(gs[3])
+
+# create a list in for simple modifications on all plots at the same time:
+allax=[ax1,ax2,ax3,ax4]
+
+# first subplot: density
+density = ax1.contourf(Y,X,ne[position,:,:],300)
+ax1.axvline(bcenter,color='w', linestyle='-')
+ax1.set_xlabel('axis $y$ (cm)',labelpad=-10)			
+ax1.set_ylabel('beam axis $x$ (cm)')
+ax1.set_title('input density $n_e$ (cm$^{-3}$) at %.3g $\mu$s' % (point))
+#ax1.set_xlim(xmin,xmax)
+#ax1.set_ylim(ymin,ymax)
+div1 =  make_axes_locatable(ax1)
+cax1=div1.append_axes("right",size="5%",pad=0.05)
+chbar_den = plt.colorbar(density,cax=cax1)
+chbar_den.set_label('density $n_e$ (cm$^{-3}$)', size=10)
+
+########### "BLOCK"-BEAM CALCULATIONS #############################################################################################
+
+# Include BLOCK-like Beam width b (1.2cm) --> average to 1.2x0.5cm² blocks
+
+#copy old Emission Matrix
+Li2p7=Li2p1.copy()
+
+#set all elements to zero, so that only the "new beam" remains:
+for k in range (0,timestep):
+	for l in range (0,stepsize):
+		for m in range (0, mn):
+			Li2p7[k,l,m]=0
+			m=m+1
+		l=l+1
+	k=k+1
+
+
+s=int(b/avy)					# step forward and backward for average, b=beamwidth, avy=average stepsize in y-direction
+	
+end1=2						# Number of blocks in y-direction
+#print('end1', end1)
+c=0.5						# bluriness in beam-axis direction
+p=int(c/0.02)					# step forward and backward for average
+end2=int(mn/(c/0.02))				# number of blocks in x-direction
+#print('end2', end2)
+
+#modified shift for correct beam-position:
+shift2=shift-3
+
+#shift is defined at the top!
+
+#for k in range (1,end1): 			# parameter for number of blocks to produce in y-direction. Upper end
+						# ..is given via number of steps in y-direction (stepsize) divided by b/0.02,
+						# ..number of steps in beam width
+print(timestep, stepsize, mn, mn-(2-1)*p)
+
+for times in range (1,len(time)):
+	for l in range (1,end2):		# parameter for number of blocks to produce in x-direction. Upper end
+						# ..is given via number of steps in x-direction (mn) divided by c/0.02,
+						# ..number of steps in beam width
+		#calculating the rectangular matrices:
+		Li2p7[times,shift2:shift2+s,mn-l*p:mn-(l-1)*p]=np.mean(Li2p1[times,shift2:shift2+s,mn-l*p:mn-(l-1)*p])		
+#		Li2p7[position,(((k-1)*s)+shift):((k*s)+shift),mn-(l*p):(mn-(l-1)*p)]= ( 	     # starting calculating the mean from the core
+#		np.mean(Li2p1[position,(((k-1)*s)+shift):((k*s)+shift),mn-(l*p):(mn-(l-1)*p)])    		     # ..outwards in order to hit the edge for sure
+#		)	
+		l=l+1					# go to next block in x-direction
+	times=times+1
+#		k=k+1					# go to next block in y-direction
+
+# third subplot: scanning beam emission profile with 0.5cm-bluriness and averaging for each y-position over
+# ..the 1.2cm beam width
+emission3 = ax2.contourf(Y,X,Li2p7[position,:,:],300)
+ax2.gca().invert_yaxis()
+ax2.axvline(bcenter,color='w', linestyle='-')
+ax2.set_ylabel('beam axis $x$ (cm)')
+ax2.set_xlabel('axis $y$ (cm)',labelpad=-10)
+ax2.set_title('block beam emission spectrum at %.3g $\mu$s'% (point))
+#ax2.set_xlim(xmin,xmax)
+#ax2.set_ylim(ymin,ymax)
+div2 =  make_axes_locatable(ax2)
+cax2=div2.append_axes("right",size="5%",pad=0.05)
+cbar_emission3 = plt.colorbar(emission3, cax=cax2)
+cbar_emission3.set_label('Li$_{2p}$ emission (a.u.)', size=10)
+
+#plot of emission along beam over time
+timeemission = ax3.contourf(T2,X2,Li2p7[:,shift*2,:],300)
+ax3.axhline(Refdec,color='w',linestyle='-')
+ax3.axvline(point,color='w', linestyle='-')
+ax3.set_ylabel('beam axis $x$ (cm)')		
+ax3.set_xlabel('time $t$ ($\mu$s)',labelpad=-10)	
+ax3.set_title('timeseries for beam position %.1g cm' % (position))
+ax3.set_xlim(0,time[-1])
+#ax3.set_ylim(ymin,ymax)
+div3 =  make_axes_locatable(ax3)
+cax3=div3.append_axes("right",size="5%",pad=0.05)
+cbar_timeemission = plt.colorbar(timeemission,cax=cax3)
+cbar_timeemission.set_label('Li$_{2p}$ emission (a.u.)', size=10)
+
+
+
+
+##################################################################################################################################
+# Plot of emission at Reference detector position
+emission3 = ax4.plot(T2,Li2p7[:,shift*2,Refdec/0.02])
+ax4.set_ylabel('Li$_{2p}$ emission (a.u.)')
+ax4.set_xlabel('time $t$ ($\mu$s)',labelpad=-10)
+ax4.set_title('Series for Detector Position %.2g cm' % (Refdec))
+ax4.set_xlim(0,time[-1])
+#ax4.set_ylim(ymin,ymax)
+div4 =  make_axes_locatable(ax4)
+cax4=div4.append_axes("right",size="5%",pad=0.05)
+
+
+
+
+########### Additional Ploting Setup #############################################################################################
+
+
+for ylabel_i in cax4.get_yticklabels():
+    ylabel_i.set_visible(False)
+    ylabel_i.set_fontsize(0.0)
+for xlabel_i in cax4.get_xticklabels():
+    xlabel_i.set_fontsize(0.0)
+    xlabel_i.set_visible(False)
+
+
+
+##################################################################################################################################
+
+
+
+plt.show()
+
+
+

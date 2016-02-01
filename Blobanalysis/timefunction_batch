@@ -1,0 +1,14 @@
+# !/bin/bash 
+#$ -l h_rt=2:00:00 -l h_vmem=32000M
+#$ -cwd
+### -m e
+#$ -o tfunc.log
+#$ -e tfunc.err 
+#$ -notify
+#$ -N tfunc_dat
+#$ -V
+python $ITMHOME/public/Blobanalysis/timefunction2_new_radial_Speedtest.py		
+###timefunction2_new_radial.py
+###timefunction2_new_radial.py
+###exit
+### ====================================================================
