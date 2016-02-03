@@ -7,7 +7,7 @@
 #$ -notify
 #$ -N tfunc_dat
 #$ -V
-python $ITMHOME/public/Blobanalysis/timefunction2_new_radial_Speedtest.py		
+python $ITMHOME/public/Masterthesis/Blobanalysis/timefunction2_new_radial.py		
 ###timefunction2_new_radial.py
 ###timefunction2_new_radial.py
 ###exit

@@ -17,13 +17,14 @@ from scipy.interpolate import spline		# for interpolate COM position for good sp
 from scipy import stats, polyfit		# for linear interpolation data
 from hdf5_read import Li_read_hdf5		# read hdf5 file in
 from block_func import block_beam_func		# for calculating the block data
+from write_nan import write_nan			# for writing in bad cases
 from dect_func import dect_func
 from Blob_params import *			# set a few parameters 
 import timeit					# for timekeeping
 from datetime import datetime			# for date and time printing in output file
 import sys					# for exiting the program if errors occur
 import pdb					# for error tracking (set_trace at right position)
-
+import resource
 #set for error tracking:
 #pdb.set_trace()
 
@@ -39,7 +40,7 @@ import pdb					# for error tracking (set_trace at right position)
 #
 # some parameters are set in Blob_params
 #
-#
+# exit for bad results via emergency exit blub = 999
 #
 #
 #
@@ -56,11 +57,10 @@ import pdb					# for error tracking (set_trace at right position)
 
 # Evaluates the 'infinite' resolved beam emission, the density evaluation or the Block evaluation case
 
-Measurement=49				# select number of measurment to treat (is used for hdf-selection etc)
+Measurement=4				# select number of measurment to treat (is used for hdf-selection etc)
 # Case Loop
-for Case in range (2):
-#Case = 0 	#(if specific case is only needed)
-#if Case = 0:
+Counterbad = 0				# Number of bad events
+for Case in range (3):
 	if Case == 0:
 		EmCase = True				# infinite emission case --> actually always true, since every different setting during analysis is made by if-statements with the other two cases --> can stay false
 		DenCase = False				# density analysis case
@@ -74,6 +74,7 @@ for Case in range (2):
 		DenCase = False				# density analysis case
 		BlockCase = True			# block-averaging emission case
 
+
 	if (EmCase and DenCase or EmCase and BlockCase or DenCase and BlockCase):		#if you do something wrong here ;)
 		sys.exit('Accidentally set two cases for evaluation!')
 
@@ -85,6 +86,8 @@ for Case in range (2):
 	NewData = True			# Switch to write output
 
 	Radial = True
+	
+	blub = 0			# emergency exit for bad results
 
 	# Writing head of file for radial case ########################################################################################
 	if Radial:	
@@ -164,9 +167,22 @@ for Case in range (2):
 	avy=y[stepsize-1]/stepsize			
 	avt=time[timestep-1]/timestep
 
+	# some matrices we need copies from during the run:
+
+	if DenCase:
+		Li2p1Z = ne.copy()				 # copy matrix for use in calculation of Lip1Z (the zero-mean-fluctuation)
+		LiBlobEm = ne.copy()				 # copy Li-Matrix for BlobCount use
+	if not DenCase:
+		Li2p1Z = Li2p1.copy()				 # copy matrix for use in calculation of Lip1Z (the zero-mean-fluctuation)
+		LiBlobEm = Li2p1.copy()				 # copy Li-Matrix for BlobCount use
+
+	if BlockCase:		# stuff which is always overwritten inside of Block-Case-loop and which has to be copied in...
+		xcop = x.copy()
+		Li2p1cop = Li2p1.copy()
+		mncop = mn
 	#define center of beam and shift for correct beam position:
 	if yvariation:
-		beamrange = np.arange (1,6,0.5)
+		beamrange = np.arange (y_starting,y_ending,yResolution)
 	else: 
 		beamrange = [bcenter]
 	for bcenter in beamrange:
@@ -178,22 +194,24 @@ for Case in range (2):
 
 		# use the block-emission data for the block case:
 		if BlockCase:
-
-			x_ori = x
+			x_ori = xcop
 		#	Li2p1 = block_func(Li2p1,timestep,mn,b,avy,shift,shift2)			# if original block-function should be used
-			Li2p1_beam, Li2p1, x, blur = dect_func(Li2p1,timestep,mn,b,avy,shift,shift2,x)	# if detector reduced block function should be used
-			x_axis = x
+
+			Li2p1_beam, Li2p1, x, blur = dect_func(Li2p1cop,timestep,mncop,b,avy,shift,shift2,xcop)	# if detector reduced block function should be used
+
+			x_axis = xcop
 			mn = len(x)
 			shift_Block = shift
 			shift = 0									# we are in the 1D-Case, so every time the entry at shift is called in matrix, this is set to the zero entry
 
 
 		#Create zero-mean fluctuation matrix
-		#neZ = ne.copy()
+
 		if not DenCase:
-			Li2p1Z = Li2p1.copy()				 # copy matrix for use in calculation of Lip1Z (the zero-mean-fluctuation)
+#			Li2p1Z = Li2p1.copy()				 # copy matrix for use in calculation of Lip1Z (the zero-mean-fluctuation)
 
 			if BlockCase:					 # we are only treating the 1D-case here, since it has been averaged already in y-direction
+				Li2p1Z = Li2p1.copy()
 				mean = [np.NaN]*mn			 # create vector for mean in correct length
 				mean = np.array(mean)			 # convert to array
 				mean = mean.reshape(1,mn)		 # reshape to matrix for x- and y-dimension (y-dim is 1 in this case!) 
@@ -211,7 +229,7 @@ for Case in range (2):
 				Li2p1Z[t_ind,:,:]=Li2p1[t_ind,:,:]-mean  # subtract mean value for every timestep (takes most of the time for the program!)
 
 		if DenCase:
-			Li2p1Z = ne.copy()				 # copy matrix for use in calculation of Lip1Z (the zero-mean-fluctuation)
+#			Li2p1Z = ne.copy()				 # copy matrix for use in calculation of Lip1Z (the zero-mean-fluctuation)
 			mean = [None]*stepsize*mn			 # create vector for mean in correct length
 			mean = np.array(mean)				 # convert to array
 			mean = mean.reshape(stepsize,mn)		 # reshape to matrix for x- and y-dimension 
@@ -230,8 +248,10 @@ for Case in range (2):
 			if BlockCase:
 				Startrange = int(len(x)/5)
 				Resolution = 1
+				
 			if not BlockCase:
 				Startrange = int(1.5/0.02)
+
 			for Refdec_ind in range(Startrange, len(x),Resolution):			# Wall-region can be neglected (approximately 1.5-2cm) --> go through Refdec-Positions
 
 				if not BlockCase:					# otherwise this position is determined later
@@ -245,7 +265,6 @@ for Case in range (2):
 					print('Position of Reference Detector set in Parameter-file: {0:.2f}cm'.format(Refdec)) # check, if Reference detector is at correct position
 					if (Refdec>x[0]):				# exit, if error with reference detector position occurs
 						sys.exit('Reference Detector outside of observable region')
-
 				#Meshgrids
 				X,Y=np.meshgrid(x,y)						# transform x,y-axis in matrix for contourf-plot of 2D-plots
 				if BlockCase:
@@ -258,120 +277,112 @@ for Case in range (2):
 				########### FIGURE 1 ##############################################################################################################
 				###################################################################################################################################
 
-
-				# create fiugre with certain ratio and facecolor:
-				
-				try:	
+				if not Radial:
+					# create fiugre with certain ratio and facecolor:
+					
+		
 					f1=plt.figure(figsize=(8,8), facecolor = 'white')
 					gs = gridspec.GridSpec(4, 1,				# ratio of grid space (2 plots per collumn, 3 per row)
 							width_ratios=[1],		# width ratios of the 3 plots per row
 							height_ratios=[1,1,1,1]		# height ratios of the 2 polots per collumn
 							)
-				except:
-		#			plt.switch_backend('Agg')
-				#	plt.ioff()	
-					f1=plt.figure(figsize=(8,8), facecolor = 'white')
-					gs = gridspec.GridSpec(4, 1,				# ratio of grid space (2 plots per collumn, 3 per row)
-							width_ratios=[1],		# width ratios of the 3 plots per row
-							height_ratios=[1,1,1,1]		# height ratios of the 2 polots per collumn
-							)
+					
+
 				
-
-			
-				#define limits for plots
-				xmin=0.0
-				xmax=2.2
-				ymin=0
-				ymax=8
+					#define limits for plots
+					xmin=0.0
+					xmax=2.2
+					ymin=0
+					ymax=8
 
 
-				# create axes with the ratios specified in gs above. ax5, ax6 are the axes for the colorbars:
-				ax1 = plt.subplot(gs[0])
-				ax2 = plt.subplot(gs[1])
-				ax3 = plt.subplot(gs[2])
-				ax4 = plt.subplot(gs[3])
+					# create axes with the ratios specified in gs above. ax5, ax6 are the axes for the colorbars:
+					ax1 = plt.subplot(gs[0])
+					ax2 = plt.subplot(gs[1])
+					ax3 = plt.subplot(gs[2])
+					ax4 = plt.subplot(gs[3])
 
-				# create a list in for simple modifications on all plots at the same time:
-				allax=[ax1,ax2,ax3,ax4]
+					# create a list in for simple modifications on all plots at the same time:
+					allax=[ax1,ax2,ax3,ax4]
 
 
-				# AX1: Density PLOT ############################################################################################################
+					# AX1: Density PLOT ############################################################################################################
 
-				# first subplot: density
-				if BlockCase:
-					density = ax1.contourf(Y,X_Ori,ne[position,:,:],300)
-				if not BlockCase:
-					density = ax1.contourf(Y,X,ne[position,:,:],300)
-				#ax1.invert_yaxis()
-				ax1.axvline(bcenter,color='w', linestyle='-')
-				ax1.set_xlabel('axis $y$ (cm)', labelpad= -10)			# switched of, since axis in row below
-				ax1.set_ylabel('beam axis $x$ (cm)')
-				ax1.set_title('input density $n_e$ (cm$^{-3}$) at %.3g ms' % (point))
-				#ax1.set_xlim(xmin,xmax)
-				#ax1.set_ylim(ymin,ymax)
-				div1 =  make_axes_locatable(ax1)
-				cax1=div1.append_axes("right",size="5%",pad=0.05)
-				chbar_den = plt.colorbar(density,cax=cax1)
-				chbar_den.set_label('density $n_e$ (cm$^{-3}$)')
-
-				# AX2:emission profile #########################################################################################################
-
-				if not DenCase:
+					# first subplot: density
 					if BlockCase:
-						emission2 = ax2.contourf(Y,X_Ori,Li2p1_beam[position,:,:],300)
+						density = ax1.contourf(Y,X_Ori,ne[position,:,:],300)
 					if not BlockCase:
-						emission2 = ax2.contourf(Y,X,Li2p1[position,:,:],300)
-					#ax2.invert_yaxis()
-					ax2.axvline(bcenter,color='w', linestyle='-')
-					ax2.set_ylabel('beam axis $x$ (cm)')
-					ax2.set_xlabel('axis $y$ (cm)', labelpad=-10)
-					ax2.set_title('beam emission spectrum at %.3g ms'% (point))
-					#ax2.set_xlim(xmin,xmax)
-					#ax2.set_ylim(ymin,ymax)
-					div2 =  make_axes_locatable(ax2)
-					cax2=div2.append_axes("right",size="5%",pad=0.05)
-					cbar_emission2 = plt.colorbar(emission2,cax=cax2)
-					cbar_emission2.set_label('Li$_{2p}$ emission (a.u.)')
+						density = ax1.contourf(Y,X,ne[position,:,:],300)
+					#ax1.invert_yaxis()
+					ax1.axvline(bcenter,color='w', linestyle='-')
+					ax1.set_xlabel('axis $y$ (cm)', labelpad= -10)			# switched of, since axis in row below
+					ax1.set_ylabel('beam axis $x$ (cm)')
+					ax1.set_title('input density $n_e$ (cm$^{-3}$) at %.3g ms' % (point))
+					#ax1.set_xlim(xmin,xmax)
+					#ax1.set_ylim(ymin,ymax)
+					div1 =  make_axes_locatable(ax1)
+					cax1=div1.append_axes("right",size="5%",pad=0.05)
+					chbar_den = plt.colorbar(density,cax=cax1)
+					chbar_den.set_label('density $n_e$ (cm$^{-3}$)')
 
-				if DenCase:
-					emission2 = ax2.contourf(Y,X,Li2p1Z[position,:,:],300)
-					#ax2.invert_yaxis()
-					ax2.axvline(bcenter,color='w', linestyle='-')
-					ax2.set_ylabel('beam axis $x$ (cm)')
-					ax2.set_xlabel('axis $y$ (cm)', labelpad=-10)
-					ax2.set_title('Density fluctuation at %.3g ms'% (point))
-					#ax2.set_xlim(xmin,xmax)
-					#ax2.set_ylim(ymin,ymax)
-					div2 =  make_axes_locatable(ax2)
-					cax2=div2.append_axes("right",size="5%",pad=0.05)
-					cbar_emission2 = plt.colorbar(emission2,cax=cax2)
-					cbar_emission2.set_label('Density fluctuation $\delta n_e$ (cm$^{-3}$)')
+					# AX2:emission profile #########################################################################################################
+
+					if not DenCase:
+						if BlockCase:
+							emission2 = ax2.contourf(Y,X_Ori,Li2p1_beam[position,:,:],300)
+						if not BlockCase:
+							emission2 = ax2.contourf(Y,X,Li2p1[position,:,:],300)
+						#ax2.invert_yaxis()
+						ax2.axvline(bcenter,color='w', linestyle='-')
+						ax2.set_ylabel('beam axis $x$ (cm)')
+						ax2.set_xlabel('axis $y$ (cm)', labelpad=-10)
+						ax2.set_title('beam emission spectrum at %.3g ms'% (point))
+						#ax2.set_xlim(xmin,xmax)
+						#ax2.set_ylim(ymin,ymax)
+						div2 =  make_axes_locatable(ax2)
+						cax2=div2.append_axes("right",size="5%",pad=0.05)
+						cbar_emission2 = plt.colorbar(emission2,cax=cax2)
+						cbar_emission2.set_label('Li$_{2p}$ emission (a.u.)')
+
+					if DenCase:
+						emission2 = ax2.contourf(Y,X,Li2p1Z[position,:,:],300)
+						#ax2.invert_yaxis()
+						ax2.axvline(bcenter,color='w', linestyle='-')
+						ax2.set_ylabel('beam axis $x$ (cm)')
+						ax2.set_xlabel('axis $y$ (cm)', labelpad=-10)
+						ax2.set_title('Density fluctuation at %.3g ms'% (point))
+						#ax2.set_xlim(xmin,xmax)
+						#ax2.set_ylim(ymin,ymax)
+						div2 =  make_axes_locatable(ax2)
+						cax2=div2.append_axes("right",size="5%",pad=0.05)
+						cbar_emission2 = plt.colorbar(emission2,cax=cax2)
+						cbar_emission2.set_label('Density fluctuation $\delta n_e$ (cm$^{-3}$)')
 
 
-				#plot of emission along beam over time
-				#print(np.shape(T2), np.shape(X2), np.shape(Li2p1Z))
+					#plot of emission along beam over time
+					#print(np.shape(T2), np.shape(X2), np.shape(Li2p1Z))
 
 
-				# AX3: Plot of emission along beam over time ####################################################################################
-				timeemission = ax3.contourf(T2,X2,Li2p1Z[int(t_start/avt):int(t_end/avt),shift*2,:],300)
-				#ax3.invert_yaxis()
-				ax3.axhline(x[Refdec_ind],color='w',linestyle='-')
-				ax3.axvline(point,color='w', linestyle='-')
-				ax3.set_ylabel('beam axis $x$ (cm)')			
-				ax3.set_xlabel('time $t$ (ms)', labelpad=-10)
-				if not DenCase:
-					ax3.set_title('timeseries of emission fluctuation for beam position %.3g cm' % (bcenter))
-				if DenCase:
-					ax3.set_title('timeseries of density fluctuation for beam position %.3g cm' % (bcenter))
-				ax3.set_xlim(t_start,t_end)
-				#ax3.set_ylim(ymin,ymax)
-				div3 =  make_axes_locatable(ax3)
-				cax3=div3.append_axes("right",size="5%",pad=0.05)
-				cbar_timeemission = plt.colorbar(timeemission,cax=cax3)
-				if not DenCase:
-					cbar_timeemission.set_label('Li$_{2p}$ emission fluctuation (a.u.)')
-				if DenCase:
-					cbar_timeemission.set_label('density $n_e$ (cm$^{-3}$)')
+					# AX3: Plot of emission along beam over time ####################################################################################
+					timeemission = ax3.contourf(T2,X2,Li2p1Z[int(t_start/avt):int(t_end/avt),shift*2,:],300)
+					#ax3.invert_yaxis()
+					ax3.axhline(x[Refdec_ind],color='w',linestyle='-')
+					ax3.axvline(point,color='w', linestyle='-')
+					ax3.set_ylabel('beam axis $x$ (cm)')			
+					ax3.set_xlabel('time $t$ (ms)', labelpad=-10)
+					if not DenCase:
+						ax3.set_title('timeseries of emission fluctuation for beam position %.3g cm' % (bcenter))
+					if DenCase:
+						ax3.set_title('timeseries of density fluctuation for beam position %.3g cm' % (bcenter))
+					ax3.set_xlim(t_start,t_end)
+					#ax3.set_ylim(ymin,ymax)
+					div3 =  make_axes_locatable(ax3)
+					cax3=div3.append_axes("right",size="5%",pad=0.05)
+					cbar_timeemission = plt.colorbar(timeemission,cax=cax3)
+					if not DenCase:
+						cbar_timeemission.set_label('Li$_{2p}$ emission fluctuation (a.u.)')
+					if DenCase:
+						cbar_timeemission.set_label('density $n_e$ (cm$^{-3}$)')
 
 
 
@@ -398,10 +409,10 @@ for Case in range (2):
 
 
 				# Calculate number of blobs in time period:
-				if not DenCase:
+				if BlockCase:
 					LiBlobEm = Li2p1.copy()						# copy Li-Matrix for BlobCount use
-				if DenCase:
-					LiBlobEm = ne.copy()						# copy density-Matrix for BlobCount use
+				#if DenCase:
+					#LiBlobEm = ne.copy()						# copy density-Matrix for BlobCount use
 
 				# Change matrix to 0s and 1s (0 below, 1 above threshold) for finding the position of blob occurance
 				for m in range (int(t_start/avt),int(t_end/avt)):					# go through every time point
@@ -428,36 +439,36 @@ for Case in range (2):
 
 				print('Number of Blobs in observed time period: ', BlobCount)
 
+				if not Radial:
+					# AX4: Plot of emission at Reference detector position #############################################################################
 
-				# AX4: Plot of emission at Reference detector position #############################################################################
+					if not DenCase:
+						emission3 = ax4.plot(T2,Li2p1[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind])
+					if DenCase:
+						emission3 = ax4.plot(T2,ne[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind])
+					ax4.axhline(LiAv,color='r', linestyle='-')
+					ax4.axhline(LiCon,color='g', linestyle='-')
+					ax4.axvline(point,color='k', linestyle='-')
+					if not DenCase:
+						ax4.set_ylabel('Li$_{2p}$ emission (a.u.)')
+					if DenCase:
+						ax4.set_ylabel('density $n_e$ (cm$^{-3}$)')
+					ax4.set_xlabel('time $t$ (ms)',labelpad=-10)
+					ax4.set_title('Series for Detector Position %.2g cm' % (Refdec))
+					ax4.set_xlim(t_start,t_end)
+					#ax4.set_ylim(ymin,ymax)
+					div4 =  make_axes_locatable(ax4)
+					cax4=div4.append_axes("right",size="5%",pad=0.05)
 
-				if not DenCase:
-					emission3 = ax4.plot(T2,Li2p1[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind])
-				if DenCase:
-					emission3 = ax4.plot(T2,ne[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind])
-				ax4.axhline(LiAv,color='r', linestyle='-')
-				ax4.axhline(LiCon,color='g', linestyle='-')
-				ax4.axvline(point,color='k', linestyle='-')
-				if not DenCase:
-					ax4.set_ylabel('Li$_{2p}$ emission (a.u.)')
-				if DenCase:
-					ax4.set_ylabel('density $n_e$ (cm$^{-3}$)')
-				ax4.set_xlabel('time $t$ (ms)',labelpad=-10)
-				ax4.set_title('Series for Detector Position %.2g cm' % (Refdec))
-				ax4.set_xlim(t_start,t_end)
-				#ax4.set_ylim(ymin,ymax)
-				div4 =  make_axes_locatable(ax4)
-				cax4=div4.append_axes("right",size="5%",pad=0.05)
-
-				for ylabel_i in cax4.get_yticklabels():
-					ylabel_i.set_visible(False)
-					ylabel_i.set_fontsize(0.0)
-				for xlabel_i in cax4.get_xticklabels():
-					xlabel_i.set_fontsize(0.0)
-					xlabel_i.set_visible(False)
+					for ylabel_i in cax4.get_yticklabels():
+						ylabel_i.set_visible(False)
+						ylabel_i.set_fontsize(0.0)
+					for xlabel_i in cax4.get_xticklabels():
+						xlabel_i.set_fontsize(0.0)
+						xlabel_i.set_visible(False)
 
 
-				##################################################################################################################################
+					##################################################################################################################################
 
 
 				print('Some Dimensions to check shapes etc:')
@@ -468,6 +479,13 @@ for Case in range (2):
 				########### Standard-Blob analysis (part 1) #######################################################################################
 				###################################################################################################################################
 
+				Delx = 0		# some stuff set to zero for case, that there are no blobs detected for first refdec-position
+				tau_B = 0
+				Blobf = 0
+				vr = 0
+				rval = 0
+				vdmax = 0
+				vimax = 0
 
 				if (Standardblob==True and BlobCount>0):				# only occurs if switch is on and if there is certain number of blobs
 
@@ -513,8 +531,8 @@ for Case in range (2):
 						if (Delt[m]==0.0):
 							NullPos_ind = m				# NullPos_ind is index, used for calculating blobwidth at HWHM#
 						m=m+1
-
-					BloX, BloT = np.meshgrid(x,Delt)			# new meshgrid for standard blob
+					if not Radial:
+						BloX, BloT = np.meshgrid(x,Delt)			# new meshgrid for standard blob
 					if (NullPos_ind==0):
 						sys.exit('The parameter for time window was not chosen to be even, NullPos_ind is not exact')
 
@@ -573,8 +591,19 @@ for Case in range (2):
 								PeakC[RandCount]=e			# store index in peak counter array (in best case only one entry peakC[1]!)
 								RandCount = RandCount+1	
 						up_index = min(PeakC)					# up index is minimum index for first time it surpasses HM
+						
+						if (up_index>5000 or low_index<1):			# exit loop for this analysis if a proper calculation is not possible here
+							blub=999
+							print(blub, 'in up/low_index')
+							Counterbad, blub, Delx, tau_B, Blobf,vr, rval, vdmax, vimax = write_nan(fu, shift_Block, Measurement,maxlen, NewData, Radial, WriteHeader, DenCase, EmCase, BlockCase, Counterbad, blub, t_start,t_end, x,y,Refdec_ind, shift, BlobCount, Delx, tau_B, Blobf,vr, rval, vdmax, vimax, B0, Lp, q95, Te0, Ti0, ne0, omegaCi, rhoS, endtime)
+							continue
+						
 						Delx = abs(x_inter[low_index]-x_inter[up_index])/2.	# HWHM of intensity at Delt = 0.
 						print('HWHM of standard blob (interpolated data): {0:.3f}cm'.format(Delx))
+
+#					if blub==999:							# exit analysis because of bad result
+#						print(blub, 'one level deeper')
+#						break
 
 					if not BlockCase:
 						LiConAv_max = max(LiConAv[NullPos_ind,:])		# Maximum emission value
@@ -583,13 +612,13 @@ for Case in range (2):
 								max_ind = c				# index on x-axis of maximum emission value
 
 						# find closest index to half-max-position (lower index)	
-						PeakC = [None]*10					# peak counter to determine for sure the position of half-max
+						PeakC = [np.NaN]*10					# peak counter to determine for sure the position of half-max
 						RandCount = 1
 						for d in range (max_ind):
 							if (LiConAv[NullPos_ind,d]>LiConAv_max/2 and LiConAv[NullPos_ind,d-1]<LiConAv_max/2):
 								PeakC[RandCount]=d			# store index in peak counter array (in best case only one entry peakC[1]!)
 								RandCount = RandCount+1
-						low_index = max(PeakC)					# lower index is maximum for last time it surpasses HM
+						low_index = np.nanmax(PeakC)					# lower index is maximum for last time it surpasses HM
 
 						# find closest index to half-max-position (upper index)
 						PeakC = [None]*10					# peak counter array to determine for sure the position of half-max
@@ -601,9 +630,21 @@ for Case in range (2):
 								PeakC[RandCount]=e			# store index in peak counter array (in best case only one entry peakC[1]!)
 								RandCount = RandCount+1	
 						up_index = min(PeakC)					# up index is minimum index for first time it surpasses HM
+						print('low index', low_index, 'up_index', up_index)
+						
+						if (up_index>5000 or low_index<1):			# exit loop for this analysis if a proper calculation is not possible here
+							blub=999
+							print(blub, 'in up/low_index')
+							if not BlockCase:
+								shift_Block = 0
+							Counterbad, blub, Delx, tau_B, Blobf,vr, rval, vdmax, vimax = write_nan(fu, shift_Block, Measurement,maxlen, NewData, Radial, WriteHeader, DenCase, EmCase, BlockCase, Counterbad, blub, t_start,t_end, x,y,Refdec_ind, shift, BlobCount, Delx, tau_B, Blobf,vr, rval, vdmax, vimax, B0, Lp, q95, Te0, Ti0, ne0, omegaCi, rhoS, endtime)
+							continue
 						Delx = (x_axis[low_index]-x_axis[up_index])/2.		# HWHM of intensity at Delt = 0.
 						print('HWHM of standard blob: {0:.3f}cm'.format(Delx))
 
+#					if blub==999:							# exit analysis because of bad result
+#						print(blub, 'one level deeper')
+#						break
 
 				#	Calculate self correlation time of standard blob a FWHM of I(x,Delt) at reference channel ####################################
 					
@@ -638,6 +679,13 @@ for Case in range (2):
 							PeakC[RandCount]=e			# store index in peak counter array (in best case only one entry peakC[1]!)
 							RandCount = RandCount+1	
 					right_index = min(PeakC)				# up index is minimum index for first time it surpasses HM
+					if (right_index>5000 or left_index==0):
+						blub==999	
+						print(blub)			# exit analysis because of bad result
+						if not BlockCase:
+							shift_Block = 0
+						Counterbad, blub, Delx, tau_B, Blobf,vr, rval, vdmax, vimax = write_nan(fu, shift_Block, Measurement,maxlen, NewData, Radial, WriteHeader, DenCase, EmCase, BlockCase, Counterbad, blub, t_start,t_end, x,y,Refdec_ind, shift, BlobCount, Delx, tau_B, Blobf,vr, rval, vdmax, vimax, B0, Lp, q95, Te0, Ti0, ne0, omegaCi, rhoS, endtime)
+						continue
 					if (right_index==10000 or left_index==0):
 						sys.exit('Please change time-window, because HWHM-calculation could not take place')
 					tau_B = (TWind_inter[right_index]-TWind_inter[left_index])/2.	# HWHM of intensity at Delt = 0.
@@ -660,11 +708,11 @@ for Case in range (2):
 								LiConAv[l,k]=0
 					COM = [None]*len(LiConAv[:,1])		# create COM-vector with appropriate shape
 					for m in range (0,int(TWind/avt)):
-						Blub = ndimage.measurements.center_of_mass(LiConAv[m,:])		# Provides tuple (x and y) --> Blub is intermediate to hold tuple and not used, while COM[m] holds the index of the COM on the x-axis
-						if (Blub<0):
+						Blubern = ndimage.measurements.center_of_mass(LiConAv[m,:])		# Provides tuple (x and y) --> Blubern is intermediate to hold tuple and not used, while COM[m] holds the index of the COM on the x-axis
+						if (Blubern<0):
 							print('There a negative index values for COM location in x[m] --> change time Window or position of detector and look into it -- something is weird!')
-					#	print(Blub[0])
-						COM[m] = x[int(Blub[0])]						# use only first part of tuple
+					#	print(Blubern[0])
+						COM[m] = x[int(Blubern[0])]						# use only first part of tuple
 					COM = np.array(COM)								# convert list to array
 
 
@@ -673,74 +721,74 @@ for Case in range (2):
 				###################################################################################################################################
 				########### FIGURE 2 (PART1) ######################################################################################################
 				###################################################################################################################################
-
-					f2=plt.figure(figsize=(8,8), facecolor = 'white')
-					gs = gridspec.GridSpec(2, 2,			# ratio of grid space (x plots per collumn [hight], y per row [width])
-						width_ratios=[1,1],		# width ratios of the 3 plots per row
-						height_ratios=[1,1]		# height ratios of the 2 polots per collumn
-						)
-
-
-					# create axes with the ratios specified in gs above. ax5, ax6 are the axes for the colorbars:
-					ax21 = plt.subplot(gs[0])
-					ax22 = plt.subplot(gs[1])
-					ax23 = plt.subplot(gs[2])
-					ax24 = plt.subplot(gs[3])
+					if not Radial:
+						f2=plt.figure(figsize=(8,8), facecolor = 'white')
+						gs = gridspec.GridSpec(2, 2,			# ratio of grid space (x plots per collumn [hight], y per row [width])
+							width_ratios=[1,1],		# width ratios of the 3 plots per row
+							height_ratios=[1,1]		# height ratios of the 2 polots per collumn
+							)
 
 
-
-				#	AX21: Standard-Blob: representative image of radial-temporal data I(x,Deta t) ###############################################
-
-					I2 = ax21.contourf(BloT, BloX, LiConAv,300)
-					if BlockCase:
-						ax21.plot([Delt[NullPos_ind],Delt[NullPos_ind]],[x_inter[up_index],x_inter[low_index]], linewidth=3, color='w')	# FWHM-plot
-					if not BlockCase:
-						ax21.plot([Delt[NullPos_ind],Delt[NullPos_ind]],[x[up_index],x[low_index]], linewidth=3, color='w')	# FWHM-plot
-					ax21.plot([self_TWind_inter[left_index],self_TWind_inter[right_index]],[x[Refdec_ind],x[Refdec_ind]],linewidth=3, color = 'w')
-					ax21.set_xlabel('time $\Delta$t', labelpad= -10)			
-					ax21.set_ylabel('beam axis $x$ (cm)')
-					ax21.set_title('Spectrum for standard blob')
-					#time points for representatives blobs are drawn into plot
-					ax21.axvline(Delt[a_an],color='r', linestyle='--')
-					ax21.axvline(Delt[b_an],color='g', linestyle='--')
-					ax21.axvline(Delt[c_an],color='b', linestyle='--')
-					ax21.axvline(Delt[NullPos_ind], color='w', linestyle='-.')						# Null pos v-oline
-					# ax1.set_xlim(xmin,xmax)
-					# ax1.set_ylim(ymin,ymax)
-					div21 =  make_axes_locatable(ax21)
-					cax21=div21.append_axes("right",size="5%",pad=0.05)
-					chbar_I = plt.colorbar(I2,cax=cax21)
-					chbar_I.set_label('I(x,$\Delta$t) (a.u.)')
+						# create axes with the ratios specified in gs above. ax5, ax6 are the axes for the colorbars:
+						ax21 = plt.subplot(gs[0])
+						ax22 = plt.subplot(gs[1])
+						ax23 = plt.subplot(gs[2])
+						ax24 = plt.subplot(gs[3])
 
 
 
+					#	AX21: Standard-Blob: representative image of radial-temporal data I(x,Deta t) ###############################################
 
-				#	AX22: Radial profiles of intensity response 
-					I31 = ax22.plot(x,LiConAv[a_an,:], color='r')
-					I32 = ax22.plot(x,LiConAv[b_an,:], color='g')
-					I33 = ax22.plot(x,LiConAv[c_an,:], color='b')
-					I34 = ax22.plot(x,LiConAv[NullPos_ind,:], color='k', linestyle ='-.')					# corresponding plot of NullPos v-line
-					if BlockCase:
-						I35 = ax22.plot(x_inter,LiConAv_smooth_a, color='r')
-						I36 = ax22.plot(x_inter,LiConAv_smooth_b, color='g')
-						I37 = ax22.plot(x_inter,LiConAv_smooth_c, color='b')
-						I38 = ax22.plot(x_inter,LiConAv_smooth_Null, color='k', linestyle = '-.')
-						ax22.plot([x_inter[up_index],x_inter[low_index]], [LiConAv_max/2,LiConAv_max/2], linewidth=3, color='k')		# FWHM
-					if not BlockCase:
-						ax22.plot([x[up_index],x[low_index]], [LiConAv_max/2,LiConAv_max/2], linewidth=3, color='k')		# FWHM
-					# Center of mass positions drawn into plot:
-					ax22.axvline(COM[a_an],color='r', linestyle='--')
-					ax22.axvline(COM[b_an],color='g', linestyle='--')
-					ax22.axvline(COM[c_an],color='b', linestyle='--')
-					ax22.set_xlabel('beam axis $x$ (cm)', labelpad= -10)			
-					ax22.set_ylabel('I(x,$\Delta$t) (a.u.)')
-					ax22.set_title('Blob representatives for dashed lined time positions in left plot')
-					# ax1.set_xlim(xmin,xmax)
-					# ax1.set_ylim(ymin,ymax)
-					# div21 =  make_axes_locatable(ax21)
-					# cax21=div21.append_axes("right",size="5%",pad=0.05)
-					# chbar_I = plt.colorbar(LiConAv,cax=cax21)
-					# chbar_I.set_label('I(x,$\Delta$t', size=10)
+						I2 = ax21.contourf(BloT, BloX, LiConAv,300)
+						if BlockCase:
+							ax21.plot([Delt[NullPos_ind],Delt[NullPos_ind]],[x_inter[up_index],x_inter[low_index]], linewidth=3, color='w')	# FWHM-plot
+						if not BlockCase:
+							ax21.plot([Delt[NullPos_ind],Delt[NullPos_ind]],[x[up_index],x[low_index]], linewidth=3, color='w')	# FWHM-plot
+						ax21.plot([self_TWind_inter[left_index],self_TWind_inter[right_index]],[x[Refdec_ind],x[Refdec_ind]],linewidth=3, color = 'w')
+						ax21.set_xlabel('time $\Delta$t', labelpad= -10)			
+						ax21.set_ylabel('beam axis $x$ (cm)')
+						ax21.set_title('Spectrum for standard blob')
+						#time points for representatives blobs are drawn into plot
+						ax21.axvline(Delt[a_an],color='r', linestyle='--')
+						ax21.axvline(Delt[b_an],color='g', linestyle='--')
+						ax21.axvline(Delt[c_an],color='b', linestyle='--')
+						ax21.axvline(Delt[NullPos_ind], color='w', linestyle='-.')						# Null pos v-oline
+						# ax1.set_xlim(xmin,xmax)
+						# ax1.set_ylim(ymin,ymax)
+						div21 =  make_axes_locatable(ax21)
+						cax21=div21.append_axes("right",size="5%",pad=0.05)
+						chbar_I = plt.colorbar(I2,cax=cax21)
+						chbar_I.set_label('I(x,$\Delta$t) (a.u.)')
+
+
+
+
+					#	AX22: Radial profiles of intensity response 
+						I31 = ax22.plot(x,LiConAv[a_an,:], color='r')
+						I32 = ax22.plot(x,LiConAv[b_an,:], color='g')
+						I33 = ax22.plot(x,LiConAv[c_an,:], color='b')
+						I34 = ax22.plot(x,LiConAv[NullPos_ind,:], color='k', linestyle ='-.')					# corresponding plot of NullPos v-line
+						if BlockCase:
+							I35 = ax22.plot(x_inter,LiConAv_smooth_a, color='r')
+							I36 = ax22.plot(x_inter,LiConAv_smooth_b, color='g')
+							I37 = ax22.plot(x_inter,LiConAv_smooth_c, color='b')
+							I38 = ax22.plot(x_inter,LiConAv_smooth_Null, color='k', linestyle = '-.')
+							ax22.plot([x_inter[up_index],x_inter[low_index]], [LiConAv_max/2,LiConAv_max/2], linewidth=3, color='k')		# FWHM
+						if not BlockCase:
+							ax22.plot([x[up_index],x[low_index]], [LiConAv_max/2,LiConAv_max/2], linewidth=3, color='k')		# FWHM
+						# Center of mass positions drawn into plot:
+						ax22.axvline(COM[a_an],color='r', linestyle='--')
+						ax22.axvline(COM[b_an],color='g', linestyle='--')
+						ax22.axvline(COM[c_an],color='b', linestyle='--')
+						ax22.set_xlabel('beam axis $x$ (cm)', labelpad= -10)			
+						ax22.set_ylabel('I(x,$\Delta$t) (a.u.)')
+						ax22.set_title('Blob representatives for dashed lined time positions in left plot')
+						# ax1.set_xlim(xmin,xmax)
+						# ax1.set_ylim(ymin,ymax)
+						# div21 =  make_axes_locatable(ax21)
+						# cax21=div21.append_axes("right",size="5%",pad=0.05)
+						# chbar_I = plt.colorbar(LiConAv,cax=cax21)
+						# chbar_I.set_label('I(x,$\Delta$t', size=10)
 
 
 
@@ -796,48 +844,47 @@ for Case in range (2):
 				###################################################################################################################################
 				########### FIGURE 2 (PART2) ######################################################################################################
 				###################################################################################################################################
+					if not Radial:
+					# 	AX23: plot different data for blob position and speed
+
+						XC = ax23.plot(Delt,COM, color = 'k')				# plot original data
+						XC_inter = ax23.plot(TWind_inter, XC_COM_smooth, color = 'm')	# plot interpolated data
+						XC_lgr = ax23.plot(Delt[LookWinMin_ind:LookWinMax_ind],COM_lgr, 'r--') # plot regression
+						ax23.set_xlabel('time $\Delta$t', labelpad= -10)			
+						ax23.set_ylabel('COM (cm)')
+						ax23.set_title('COM of Blob')
+						ax23.set_xlim(LookWinMin,LookWinMax)
+						ax23.set_ylim(x[-1],x[0])
+						div23 =  make_axes_locatable(ax23)
+						cax23 = div23.append_axes("right",size="5%",pad=0.05)
 					
-				# 	AX23: plot different data for blob position and speed
+						for ylabel_i in cax23.get_yticklabels():
+							ylabel_i.set_visible(False)
+							ylabel_i.set_fontsize(0.0)
+						for xlabel_i in cax23.get_xticklabels():
+							xlabel_i.set_fontsize(0.0)
+							xlabel_i.set_visible(False)
 
-					XC = ax23.plot(Delt,COM, color = 'k')				# plot original data
-					XC_inter = ax23.plot(TWind_inter, XC_COM_smooth, color = 'm')	# plot interpolated data
-					XC_lgr = ax23.plot(Delt[LookWinMin_ind:LookWinMax_ind],COM_lgr, 'r--') # plot regression
-					ax23.set_xlabel('time $\Delta$t', labelpad= -10)			
-					ax23.set_ylabel('COM (cm)')
-					ax23.set_title('COM of Blob')
-					ax23.set_xlim(LookWinMin,LookWinMax)
-					ax23.set_ylim(x[-1],x[0])
-					div23 =  make_axes_locatable(ax23)
-					cax23 = div23.append_axes("right",size="5%",pad=0.05)
-				
-					for ylabel_i in cax23.get_yticklabels():
-						ylabel_i.set_visible(False)
-						ylabel_i.set_fontsize(0.0)
-					for xlabel_i in cax23.get_xticklabels():
-						xlabel_i.set_fontsize(0.0)
-						xlabel_i.set_visible(False)
+					# 	AX24: plot emission data for standard blob at reference position
 
-				# 	AX24: plot emission data for standard blob at reference position
-
-					Em_Stan = ax24.plot(Delt,LiConAv[:,Refdec_ind], color = 'k')				# plot original data
-					Em_Stan_inter = ax24.plot(self_TWind_inter, LiConAv_self_smooth, color = 'm')	# plot interpolated data
-					ax24.plot([self_TWind_inter[left_index-1],self_TWind_inter[right_index]],[LiConAv_self_smooth[left_index-1],LiConAv_self_smooth[right_index]],linewidth=3, color = 'm')
-					ax24.set_xlabel('time $\Delta$t', labelpad= -10)			
-					ax24.set_ylabel('I(x,$\Delta$t) (a.u.)')
-					ax24.set_title('Standard blob at reference detector at %.2g cm' % (Refdec))
-					ax24.set_xlim(LookWinMin,LookWinMax)
-					# ax24.set_ylim(x[-1],x[0])
-					# div24 =  make_axes_locatable(ax23)
-					# cax24 = div23.append_axes("right",size="5%",pad=0.05)
+						Em_Stan = ax24.plot(Delt,LiConAv[:,Refdec_ind], color = 'k')				# plot original data
+						Em_Stan_inter = ax24.plot(self_TWind_inter, LiConAv_self_smooth, color = 'm')	# plot interpolated data
+						ax24.plot([self_TWind_inter[left_index-1],self_TWind_inter[right_index]],[LiConAv_self_smooth[left_index-1],LiConAv_self_smooth[right_index]],linewidth=3, color = 'm')
+						ax24.set_xlabel('time $\Delta$t', labelpad= -10)			
+						ax24.set_ylabel('I(x,$\Delta$t) (a.u.)')
+						ax24.set_title('Standard blob at reference detector at %.2g cm' % (Refdec))
+						ax24.set_xlim(LookWinMin,LookWinMax)
+						# ax24.set_ylim(x[-1],x[0])
+						# div24 =  make_axes_locatable(ax23)
+						# cax24 = div23.append_axes("right",size="5%",pad=0.05)
 
 				###################################################################################################################################
 				########### PRINT TO FILE - OUTPUT STATEMENST #####################################################################################
 				###################################################################################################################################
-
 				if not NewData:
 					print('output file is not produced!')
 				if NewData:					# Write only, if needed
-
+#					print('memory used:', resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
 					if not Radial:
 						if not WriteHeader:
 							print('no header is written for outputfile!')
@@ -850,11 +897,14 @@ for Case in range (2):
 
 
 					# data is list consisting of tubles (!) with data and format specifier
-					if not BlockCase:
+					if not BlockCase and BlobCount>=0:
 						data = [("00"+str(Measurement), ""), (t_start,".2f"), (t_end-t_start, ".2f"), (x[Refdec_ind], ".2f"), (y[shift*2],".2f"), (BlobCount, "d"), (Delx, ".3f"), (tau_B,".4f"), (Blobf,".1f"), (vr, ".1f"), (rval,".1f"), (vdmax,".1f"), (vimax,".1f"), (B0,".2f"), (Lp,".2f"), (q95,".2f"), (Te0,".2f"), (Ti0,".2f"), (ne0,".2e"), (omegaCi,".2e"), (rhoS,".6f"), (endtime,".2f")]
-					if BlockCase:
+					if not BlockCase and np.isnan(BlobCount):
+						data = [("00"+str(Measurement), ""), (t_start,".2f"), (t_end-t_start, ".2f"), (x[Refdec_ind], ".2f"), (y[shift*2],".2f"), (BlobCount, ".1f"), (Delx, ".1f"), (tau_B,".1f"), (Blobf,".1f"), (vr, ".1f"), (rval,".1f"), (vdmax,".1f"), (vimax,".1f"), (B0,".2f"), (Lp,".2f"), (q95,".2f"), (Te0,".2f"), (Ti0,".2f"), (ne0,".2e"), (omegaCi,".2e"), (rhoS,".6f"), (endtime,".2f")]
+					if BlockCase and BlobCount>=0:
 						data = [("00"+str(Measurement), ""), (t_start,".2f"), (t_end-t_start, ".2f"), (x[Refdec_ind], ".2f"), (y[shift_Block*2],".2f"), (BlobCount, "d"), (Delx, ".3f"), (tau_B,".4f"), (Blobf,".1f"), (vr, ".1f"), (rval,".1f"), (vdmax,".1f"), (vimax,".1f"), (B0,".2f"), (Lp,".2f"), (q95,".2f"), (Te0,".2f"), (Ti0,".2f"), (ne0,".2e"), (omegaCi,".2e"), (rhoS,".6f"), (endtime,".2f")]
-
+					if np.isnan(BlobCount) and BlockCase:
+						data = [("00"+str(Measurement), ""), (t_start,".2f"), (t_end-t_start, ".2f"), (x[Refdec_ind], ".2f"), (y[shift_Block*2],".2f"), (BlobCount, ".1f"), (Delx, ".1f"), (tau_B,".1f"), (Blobf,".1f"), (vr, ".1f"), (rval,".1f"), (vdmax,".1f"), (vimax,".1f"), (B0,".2f"), (Lp,".2f"), (q95,".2f"), (Te0,".2f"), (Ti0,".2f"), (ne0,".2e"), (omegaCi,".2e"), (rhoS,".6f"), (endtime,".2f")]
 
 					myrow="{0:%a_%d/%m/%Y_%H:%M:%S}".format(datetime.now())		# initialize format for data output (first entry is going to be the date and time)
 					i=0
@@ -875,7 +925,9 @@ for Case in range (2):
 					rval	= 0
 					vdmax	= 0
 					vimax	= 0
-				
-		if NewData:	
-			fu.close()
+					
+
+	if NewData:	
+		fu.close()
+print('Number of events left out because of bad time windows:', Counterbad)
 

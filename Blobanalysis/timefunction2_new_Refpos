@@ -56,7 +56,7 @@ import pdb					# for error tracking (set_trace at right position)
 # Evaluates the 'infinite' resolved beam emission, the density evaluation or the Block evaluation case
 
 
-EmCase = False 				# infinite emission case --> actually always true, since every different setting during analysis is made by if-statements with the other two cases --> can stay false
+EmCase = True				# infinite emission case --> actually always true, since every different setting during analysis is made by if-statements with the other two cases --> can stay false
 DenCase = False				# density analysis case
 BlockCase = False			# block-averaging emission case
 
@@ -73,11 +73,11 @@ NewData = False				# Switch to write output
 
 # read in data from hdf5-file via external function
 Measurement=4								# will be used for file search and in output
-print('Data is going to be read from file: /hesel/data/ASDEX.{0:03d}.h5'.format(Measurement))
+print('Data is going to be read from file: ASDEX.{0:03d}.h5'.format(Measurement))
 
 # read in data from function Li_read_hdf5: Specify correct hdf5-file
 time, x, y, ne, LiTemp, Li2p1, B0, Lp, q95, Te0, Ti0, ne0, omegaCi, rhoS, endtime = Li_read_hdf5('/pfs/home/bschiess/public/hesel/data/ASDEX.{0:03d}.h5'.format(Measurement))
-
+#time, x, y, ne, LiTemp, Li2p1, B0, Lp, q95, Te0, Ti0, ne0, omegaCi, rhoS, endtime = Li_read_hdf5('/pfs/home/bschiess/itmwork/hesel_data/ASDEX.{0:03d}.h5'.format(Measurement))
 # other settings and preparations  #############################################################################################
 
 # selected times, which are supposed to be investigated [us]
@@ -219,7 +219,6 @@ if BlockCase:
 	density = ax1.contourf(Y,X_Ori,ne[position,:,:],300)
 if not BlockCase:
 	density = ax1.contourf(Y,X,ne[position,:,:],300)
-#ax1.invert_yaxis()
 ax1.axvline(bcenter,color='w', linestyle='-')
 ax1.set_xlabel('axis $y$ (cm)', labelpad= -10)			# switched of, since axis in row below
 ax1.set_ylabel('beam axis $x$ (cm)')
