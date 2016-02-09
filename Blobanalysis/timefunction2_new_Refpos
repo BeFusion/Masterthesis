@@ -63,6 +63,9 @@ BlockCase = False			# block-averaging emission case
 if (EmCase and DenCase or EmCase and BlockCase or DenCase and BlockCase):		#if you do something wrong here ;)
 	sys.exit('Accidentally set two cases for evaluation!')
 
+Noise = False				# switch on additive white Gaussian noise --> Very time consuming!
+
+saving = False
 
 Standardblob= True			# switch for calculations
 
@@ -71,13 +74,24 @@ NewData = False				# Switch to write output
 
 # data reading  ################################################################################################################
 
+# name of files to store
+if EmCase:
+	storepref = 'Em_data_'				# 'intermediate' appendix not to be changed
+if DenCase:
+	storepref = 'Den_data_'
+if BlockCase:
+	storepref = 'Block_data_'
+
+storename = storepref+'noise_test'			# change file extension as needed!
+
 # read in data from hdf5-file via external function
 Measurement=4						# will be used for file search and in output
+
 print('Data is going to be read from file: ASDEX.{0:03d}.h5'.format(Measurement))
 
 # read in data from function Li_read_hdf5: Specify correct hdf5-file
-#time, x, y, ne, LiTemp, Li2p1, B0, Lp, q95, Te0, Ti0, ne0, omegaCi, rhoS, endtime = Li_read_hdf5('/pfs/home/bschiess/public/hesel/data/ASDEX.{0:03d}.h5'.format(Measurement))
-time, x, y, ne, LiTemp, Li2p1, B0, Lp, q95, Te0, Ti0, ne0, omegaCi, rhoS, endtime = Li_read_hdf5('/pfs/home/bschiess/itmwork/hesel_data/ASDEX.{0:03d}.h5'.format(Measurement))
+time, x, y, ne, LiTemp, Li2p1, B0, Lp, q95, Te0, Ti0, ne0, omegaCi, rhoS, endtime = Li_read_hdf5('/pfs/home/bschiess/public/hesel/data/ASDEX.{0:03d}.h5'.format(Measurement))
+#time, x, y, ne, LiTemp, Li2p1, B0, Lp, q95, Te0, Ti0, ne0, omegaCi, rhoS, endtime = Li_read_hdf5('/pfs/home/bschiess/itmwork/hesel_data/ASDEX.{0:03d}.h5'.format(Measurement))
 # other settings and preparations  #############################################################################################
 
 # selected times, which are supposed to be investigated [us]
@@ -96,12 +110,44 @@ timestep=len(time)				# misleading name, sorry
 avy=y[stepsize-1]/stepsize			
 avt=time[timestep-1]/timestep
 
+
 #define center of beam and shift for correct beam position:
 shift=int(bcenter/y[-1]*stepsize/2)+1		# shift of beam center in order to place the center at correct position
 shift2 = int(b/2/y[-1]*stepsize)		# shift*2-shift2 is now left index of beam edge and shift*2+shift2 the right one
 print('Position of Beam: {0:.2f}cm'.format(y[shift*2]))
 print('Beamwidth: {0:.2f}cm'.format(y[shift2+shift2]))	
 	
+
+tic1 = timeit.default_timer()
+# add noise to signal, if needed
+
+if not BlockCase:
+	if Noise:
+		for x_ind in range(mn):
+			noiLi = np.random.normal(0,np.mean(Li2p1[:,shift*2,x_ind]),timestep)
+#			noine = np.random.normal(0,np.mean(ne[:,y_ind,x_ind]),timestep)
+			for t_ind in range(timestep):
+				Li2p1[t_ind,y_ind,x_ind] = Li2p1[t_ind,shift*2,x_ind]+noiLi[t_ind]
+#				ne[t_ind,y_ind,x_ind] = ne[t_ind,y_ind,x_ind]+noine[t_ind]
+
+if BlockCase:
+	if Noise:
+		for x_ind in range(mn):
+			for y_ind in range(shift*2-shift2-2,shift*2+shift2+2):				# + 2 safty distance
+				noiLi = np.random.normal(0,np.mean(Li2p1[:,y_ind,x_ind]),timestep)
+	#			noine = np.random.normal(0,np.mean(ne[:,y_ind,x_ind]),timestep)
+				for t_ind in range(timestep):
+					Li2p1[t_ind,y_ind,x_ind] = Li2p1[t_ind,y_ind,x_ind]+noiLi[t_ind]
+	#				ne[t_ind,y_ind,x_ind] = ne[t_ind,y_ind,x_ind]+noine[t_ind]
+
+
+
+tic2= timeit.default_timer()
+print('time needed for ...:', tic2-tic1)
+
+
+
+
 
 # use the block-emission data for the block case:
 if BlockCase:
@@ -127,27 +173,27 @@ if not DenCase:
 		for x_ind in range (0,mn):		 
 			mean[0,x_ind] = np.mean(Li2p1[:,0,x_ind])
 	if not BlockCase:
-		mean = [np.NaN]*stepsize*mn		# create vector for mean in correct length
+		mean = [np.NaN]*mn			# create vector for mean in correct length
 		mean = np.array(mean)			# convert to array
-		mean = mean.reshape(stepsize,mn)	# reshape to matrix for x- and y-dimension 
-		for y_ind in range (0, stepsize):	# do for loop over x-and y-positionand calculate the zero-mean-matrix (average over all timesteps)
-			for x_ind in range (0,mn):		 
-				mean[y_ind,x_ind] = np.mean(Li2p1[:,y_ind,x_ind])
+#		mean = mean.reshape(stepsize,mn)	# reshape to matrix for x- and y-dimension 
+#		for y_ind in range (0, stepsize):	# do for loop over x-and y-positionand calculate the zero-mean-matrix (average over all timesteps)
+		for x_ind in range (0,mn):		 
+			mean[x_ind] = np.mean(Li2p1[:,shift*2,x_ind])
 			
 	for t_ind in range (int(t_start/avt),int(t_end/avt)):
-		Li2p1Z[t_ind,:,:]=Li2p1[t_ind,:,:]-mean  # subtract mean value for every timestep (takes most of the time for the program!)
+		Li2p1Z[t_ind,shift*2,:]=Li2p1[t_ind,shift*2,:]-mean  # subtract mean value for every timestep (takes most of the time for the program!)
 
 if DenCase:
 	Li2p1Z = ne.copy()				 # copy matrix for use in calculation of Lip1Z (the zero-mean-fluctuation)
-	mean = [None]*stepsize*mn			 # create vector for mean in correct length
+	mean = [None]*mn			 # create vector for mean in correct length
 	mean = np.array(mean)				 # convert to array
-	mean = mean.reshape(stepsize,mn)		 # reshape to matrix for x- and y-dimension 
-	for y_ind in range (0, stepsize):		 # do for loop over x-and y-positionand calculate the zero-mean-matrix (average over all timesteps)
-		for x_ind in range (0,mn):		 
-			mean[y_ind,x_ind] = np.mean(ne[:,y_ind,x_ind])
+#	mean = mean.reshape(stepsize,mn)		 # reshape to matrix for x- and y-dimension 
+#	for y_ind in range (0, stepsize):		 # do for loop over x-and y-positionand calculate the zero-mean-matrix (average over all timesteps)
+	for x_ind in range (0,mn):		 
+		mean[x_ind] = np.mean(ne[:,shift*2,x_ind])
 			
 	for t_ind in range (int(t_start/avt),int(t_end/avt)):
-		Li2p1Z[t_ind,:,:]=ne[t_ind,:,:]-mean  # subtract mean value for every timestep (takes most of the time for the program!)
+		Li2p1Z[t_ind,shift*2,:]=ne[t_ind,shift*2,:]-mean  # subtract mean value for every timestep (takes most of the time for the program!)
 
 
 # Calculate index and position of Reference detector on xaxis (indices are counted backwards x[len(x)-1]<0!)
@@ -187,7 +233,7 @@ X2,T2=np.meshgrid(x,time[int(t_start/avt):int(t_end/avt)]) 	# Meshgrid for timep
 
 
 # create fiugre with certain ratio and facecolor:
-f1=plt.figure(figsize=(8,8), facecolor = 'white')
+f1=plt.figure(figsize=(16,16), facecolor = 'white')
 gs = gridspec.GridSpec(4, 1,				# ratio of grid space (2 plots per collumn, 3 per row)
                        width_ratios=[1],		# width ratios of the 3 plots per row
                        height_ratios=[1,1,1,1]		# height ratios of the 2 polots per collumn
@@ -601,7 +647,7 @@ if (Standardblob==True and BlobCount>0):				# only occurs if switch is on and if
 ########### FIGURE 2 (PART1) ######################################################################################################
 ###################################################################################################################################
 
-	f2=plt.figure(figsize=(8,8), facecolor = 'white')
+	f2=plt.figure(figsize=(16,16), facecolor = 'white')
 	gs = gridspec.GridSpec(2, 2,			# ratio of grid space (x plots per collumn [hight], y per row [width])
                        width_ratios=[1,1],		# width ratios of the 3 plots per row
                        height_ratios=[1,1]		# height ratios of the 2 polots per collumn
@@ -825,6 +871,8 @@ if NewData:					# Write only, if needed
 	fu.write(myrow)							# write to file
 	fu.close()
 
-
+if saving:
+	f1.savefig('{0:03d}Fig1_{1:}'.format(Measurement,storename))
+	f2.savefig('{0:03d}Fig2_{1:}'.format(Measurement,storename))
 
 plt.show()
