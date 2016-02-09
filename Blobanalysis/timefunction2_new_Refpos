@@ -72,12 +72,12 @@ NewData = False				# Switch to write output
 # data reading  ################################################################################################################
 
 # read in data from hdf5-file via external function
-Measurement=4								# will be used for file search and in output
+Measurement=4						# will be used for file search and in output
 print('Data is going to be read from file: ASDEX.{0:03d}.h5'.format(Measurement))
 
 # read in data from function Li_read_hdf5: Specify correct hdf5-file
-time, x, y, ne, LiTemp, Li2p1, B0, Lp, q95, Te0, Ti0, ne0, omegaCi, rhoS, endtime = Li_read_hdf5('/pfs/home/bschiess/public/hesel/data/ASDEX.{0:03d}.h5'.format(Measurement))
-#time, x, y, ne, LiTemp, Li2p1, B0, Lp, q95, Te0, Ti0, ne0, omegaCi, rhoS, endtime = Li_read_hdf5('/pfs/home/bschiess/itmwork/hesel_data/ASDEX.{0:03d}.h5'.format(Measurement))
+#time, x, y, ne, LiTemp, Li2p1, B0, Lp, q95, Te0, Ti0, ne0, omegaCi, rhoS, endtime = Li_read_hdf5('/pfs/home/bschiess/public/hesel/data/ASDEX.{0:03d}.h5'.format(Measurement))
+time, x, y, ne, LiTemp, Li2p1, B0, Lp, q95, Te0, Ti0, ne0, omegaCi, rhoS, endtime = Li_read_hdf5('/pfs/home/bschiess/itmwork/hesel_data/ASDEX.{0:03d}.h5'.format(Measurement))
 # other settings and preparations  #############################################################################################
 
 # selected times, which are supposed to be investigated [us]
@@ -461,6 +461,9 @@ if (Standardblob==True and BlobCount>0):				# only occurs if switch is on and if
 		LiConAv_smooth_c = spline(x_here,LiConAv_here_c,x_inter)
 		LiConAv_smooth_Null = spline(x_here,LiConAv_here_Null,x_inter)
 
+
+
+
 # 	Calculate HWHM of standard blob (more work, since curve not necessarily gausian!) ##########################################
 
 	if BlockCase:
@@ -518,6 +521,7 @@ if (Standardblob==True and BlobCount>0):				# only occurs if switch is on and if
 		up_index = min(PeakC)					# up index is minimum index for first time it surpasses HM
 		Delx = (x_axis[low_index]-x_axis[up_index])/2.		# HWHM of intensity at Delt = 0.
 		print('HWHM of standard blob: {0:.3f}cm'.format(Delx))
+
 
 
 #	Calculate self correlation time of standard blob a FWHM of I(x,Delt) at reference channel ####################################
@@ -583,7 +587,15 @@ if (Standardblob==True and BlobCount>0):				# only occurs if switch is on and if
 	COM = np.array(COM)								# convert list to array
 
 
+# 	Calculation of relative fluction of intensity in spectrum or density ######################################################
 
+	LiConAv_maxrel = max(LiConAv[:,Refdec_ind])		# Maximum emission value
+	LiConAv_mean = np.mean(LiConAv[:Refdec_ind])		# Mean of emission value at this reference detector
+
+	LiConAvrel = LiConAv_maxrel/LiConAv_mean			# relative flucutation of intensity/density
+	print('Relative fluctuation of intensity/density for standard blob: ', LiConAvrel)
+	print('Mean fluctuation of intensity/density for standard blob: ', LiConAv_mean)
+	print('Max fluctuation of intensity/density for standard blob: ', LiConAv_maxrel)
 
 ###################################################################################################################################
 ########### FIGURE 2 (PART1) ######################################################################################################

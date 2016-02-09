@@ -38,11 +38,17 @@ import pdb					# for error tracking (set_trace at right position)
 ########### READING DATA AND PRELIMINARY settings #############################################################################
 ###############################################################################################################################
 
-Measurement = 49
+Measurement = 4
 
-time, x_pos, y_pos, f_B, rho_x, tau_B, v_r, v_rmist, vdmax, vimax, B0, Lp,q95 = np.loadtxt('{0:03d}Emresults.txt'.format(Measurement), usecols = (3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16), unpack = True, skiprows=2)
-time2, x_pos2,y_pos2, f_B2, rho_x2, tau_B2, v_r2, v_rmist2, vdmax2, vimax2, B02, Lp2,q952 = np.loadtxt('{0:03d}Denresults.txt'.format(Measurement), usecols = (3, 4, 5,  6, 7, 8, 10, 11, 12, 13, 14, 15, 16), unpack = True, skiprows=2)
-time3, x_pos3, y_pos3, f_B3, rho_x3, tau_B3, v_r3, v_rmist3, vdmax3, vimax3, B03, Lp3,q953 = np.loadtxt('{0:03d}Blockresults.txt'.format(Measurement), usecols = (3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16), unpack = True, skiprows=2)
+
+time, x_pos, y_pos, f_B, rho_x, tau_B, v_r, v_rmist, vdmax, vimax, Relem, B0, Lp,q95 = np.loadtxt('{0:03d}Emresults_veltwind.txt'.format(Measurement), usecols = (3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16, 17), unpack = True, skiprows=2)
+time2, x_pos2,y_pos2, f_B2, rho_x2, tau_B2, v_r2, v_rmist2, vdmax2, vimax2, Relem2, B02, Lp2,q952 = np.loadtxt('{0:03d}Denresults_veltwind.txt'.format(Measurement), usecols = (3, 4, 5,  6, 7, 8, 10, 11, 12, 13, 14, 15, 16, 17), unpack = True, skiprows=2)
+time3, x_pos3, y_pos3, f_B3, rho_x3, tau_B3, v_r3, v_rmist3, vdmax3, vimax3, Relem3, B03, Lp3,q953 = np.loadtxt('{0:03d}Blockresults_veltwind.txt'.format(Measurement), usecols = (3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16, 17), unpack = True, skiprows=2)
+
+
+#	time, x_pos, y_pos, f_B, rho_x, tau_B, v_r, v_rmist, vdmax, vimax, B0, Lp,q95 = np.loadtxt('{0:03d}Emresults.txt'.format(Measurement), usecols = (3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16), unpack = True, skiprows=2)
+#	time2, x_pos2,y_pos2, f_B2, rho_x2, tau_B2, v_r2, v_rmist2, vdmax2, vimax2, B02, Lp2,q952 = np.loadtxt('{0:03d}Denresults.txt'.format(Measurement), usecols = (3, 4, 5,  6, 7, 8, 10, 11, 12, 13, 14, 15, 16), unpack = True, skiprows=2)
+#	time3, x_pos3, y_pos3, f_B3, rho_x3, tau_B3, v_r3, v_rmist3, vdmax3, vimax3, B03, Lp3,q953 = np.loadtxt('{0:03d}Blockresults.txt'.format(Measurement), usecols = (3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16), unpack = True, skiprows=2)
 
 
 ###################################################################################################################################
@@ -119,6 +125,8 @@ v_rmistm =np.reshape(v_rmist, (leny,lenx))
 vdmaxm =np.reshape(vdmax, (leny,lenx))
 vimaxm =np.reshape(vimax, (leny,lenx))
 
+Relemm = np.reshape(Relem, (leny,lenx))
+
 print('shape of f_B_Mat', np.shape(f_Bm))
 print('Number of beam positions over which has been averaged: ', lenx, leny, lenx*leny,  len(y_pos), len(f_B), f_B[0],f_B[-1])
 
@@ -132,10 +140,15 @@ v_rmist2m =np.reshape(v_rmist2, (leny2,lenx2))
 vdmax2m =np.reshape(vdmax2, (leny2,lenx2))
 vimax2m =np.reshape(vimax2, (leny2,lenx2))
 
+Relem2m = np.reshape(Relem2, (leny2,lenx2))
+
 print('shape of f_B_Mat', np.shape(f_B2m))
 print('Number of beam positions over which has been averaged: ', lenx2, leny2, lenx2*leny2,  len(y_pos2), len(f_B2), f_B2[0],f_B[2-1])
 
 # for Block-Case ##################################################################################################################
+
+print('Number of beam positions over which has been averaged: ', lenx3, leny3, lenx3*leny3,  len(y_pos3), len(f_B3), f_B3[0],f_B3[-1])
+
 
 f_B3m = np.reshape(f_B3, (leny3, lenx3))
 rho_x3m=np.reshape(rho_x3, (leny3,lenx3))
@@ -145,8 +158,9 @@ v_rmist3m =np.reshape(v_rmist2, (leny3,lenx2))
 vdmax3m =np.reshape(vdmax3, (leny3,lenx3))
 vimax3m =np.reshape(vimax3, (leny3,lenx3))
 
+Relem3m = np.reshape(Relem3, (leny3,lenx3))
+
 print('shape of f_B_Mat', np.shape(f_B3m))
-print('Number of beam positions over which has been averaged: ', lenx3, leny3, lenx3*leny3,  len(y_pos3), len(f_B3), f_B3[0],f_B3[-1])
 
 
 ###################################################################################################################################
@@ -191,6 +205,13 @@ for f in range (lenx):
 	vimax[f] = stats.nanmean(vimaxm[:,f])
 	vimaxerr[f] = stats.nanstd(vimaxm[:,f])
 
+Relem = [None]*lenx
+Relemerr = [None]*lenx
+for f in range (lenx):
+	Relem[f] = stats.nanmean(Relemm[:,f])
+	Relemerr[f] = stats.nanstd(Relemm[:,f])
+
+
 # for Den-Case #####################################################################################################################
 f_B2 = [None]*lenx2
 f_B2err = [None]*lenx2
@@ -228,6 +249,14 @@ for f in range (lenx2):
 	vimax2[f] = stats.nanmean(vimax2m[:,f])
 	vimax2err[f] = stats.nanstd(vimax2m[:,f])
 
+Relem2 = [None]*lenx2
+Relem2err = [None]*lenx2
+for f in range (lenx2):
+	Relem2[f] = stats.nanmean(Relem2m[:,f])
+	Relem2err[f] = stats.nanstd(Relem2m[:,f])
+
+
+
 # for Block-Case #####################################################################################################################
 f_B3 = [None]*lenx3
 f_B3err = [None]*lenx3
@@ -264,6 +293,13 @@ vimax3err = [None]*lenx3
 for f in range (lenx3):
 	vimax3[f] = stats.nanmean(vimax3m[:,f])
 	vimax3err[f] = stats.nanstd(vimax3m[:,f])
+
+
+Relem3 = [None]*lenx3
+Relem3err = [None]*lenx3
+for f in range (lenx3):
+	Relem3[f] = stats.nanmean(Relem3m[:,f])
+	Relem3err[f] = stats.nanstd(Relem3m[:,f])
 
 
 # Masking nan-values for plots, if need ############################################################################################
@@ -321,7 +357,7 @@ ax2 = plt.subplot(gs[2])	# tauB
 ax7 = plt.subplot(gs[5])	# vimax
 ax3 = plt.subplot(gs[4])	# fB
 ax6 = plt.subplot(gs[6])	# fB freq
-
+ax8 = plt.subplot(gs[7])	# rleative fluctuation
 
 
 # create a list in for simple modifications on all plots at the same time:
@@ -401,9 +437,24 @@ ax7.set_ylabel(r'Maximum velocities $v_{imax}$ (m/s)')
 ax7.get_yaxis().set_label_coords(-0.11,0.5)
 ax7.set_title(r'Maximum velocities for interpolated data')
 
-leg = ax7.legend(loc='upper center', bbox_to_anchor = (0.225,-0.18),fancybox = True, numpoints = 1)
 
-#f1.savefig('{0:03d}FigRadial_Analysis_Averaged10ypos'.format(Measurement))
+ax8.errorbar(x,Relem, yerr = Relemerr,color =  'k',marker='s',label='Emission data')
+ax8.errorbar(x2,Relem2, yerr = Relem2err, color = 'b',marker='o',label='Density data')
+ax8.errorbar(x3,Relem3, yerr = Relem3err, color = 'g',marker='D',label='Block data')
+ax8.axvline(0,color='k', linestyle='-.')
+ax8.set_xlabel('beam axis $x$ (cm)', labelpad= 0)			# switched of, since axis in row below
+ax8.set_ylabel(r'relative emission $\delta I/I$ or $\delta n/n')
+ax8.get_yaxis().set_label_coords(-0.11,0.5)
+ax8.set_title(r'Blob amplitude')
+
+leg = ax8.legend(loc='upper center', bbox_to_anchor = (0.225,-0.18),fancybox = True, numpoints = 1)
+
+# leg = ax7.legend(loc='upper center', bbox_to_anchor = (0.225,-0.18),fancybox = True, numpoints = 1)
+
+
+
+
+f1.savefig('{0:03d}FigRadial_veltwind'.format(Measurement))
 plt.show()
 
 

@@ -84,6 +84,8 @@ for Case in range (3):
 	Standardblob= True		# switch for calculations
 
 	NewData = True			# Switch to write output
+	
+	WriteHeader = True 
 
 	Radial = True
 	
@@ -91,9 +93,10 @@ for Case in range (3):
 
 	# Writing head of file for radial case ########################################################################################
 	if Radial:	
-
-		WriteHeader = True 
-
+		if not NewData:
+			fu = 0
+			maxlen = 0
+			
 		if not WriteHeader:
 			print('no header is written for outputfile!')
 		if EmCase and NewData:
@@ -108,7 +111,7 @@ for Case in range (3):
 	#	Putting everything into lists and pre-processing for output ###########################################################
 		# Collumn index print for better human readability
 		if WriteHeader and NewData:
-			pre=[None]*23
+			pre=[None]*24
 			countblub=0
 			for i in range(len(pre)):
 				pre[i]= countblub
@@ -117,7 +120,7 @@ for Case in range (3):
 			pre[0]="Col.-Index:  0"
 
 			# header is list consisting of header titles:
-			header = ['Date & Time', 'Measurement #', 'Starting time [ms]', 'Observed time [ms]', 'Refdec-pos[cm]', 'y-pos of beam [cm]', '# of Blobs', 'HWHM of Blob [cm]', 'tau_B [ms]','Blobfrequency [1/s]','Average speed vr [m/s]','Std. error vr [m/s]', 'max speed vdmax [m/s]', 'max i-pol. vimax [m/s]', 'B0 [T]', 'Lp [m]', 'q95 ', 'Te0 [eV]', 'Ti0 [eV]', 'ne0 [m-3]', 'omegaCi [1/s]', 'rhoS [m]', 'endtime [ms]']
+			header = ['Date & Time', 'Measurement #', 'Starting time [ms]', 'Observed time [ms]', 'Refdec-pos[cm]', 'y-pos of beam [cm]', '# of Blobs', 'HWHM of Blob [cm]', 'tau_B [ms]','Blobfrequency [1/s]','Average speed vr [m/s]','Std. error vr [m/s]', 'max speed vdmax [m/s]', 'max i-pol. vimax [m/s]', 'rel. fluctuation', 'B0 [T]', 'Lp [m]', 'q95 ', 'Te0 [eV]', 'Ti0 [eV]', 'ne0 [m-3]', 'omegaCi [1/s]', 'rhoS [m]', 'endtime [ms]']
 
 			# determine maximum length of strings in header to determine space needed for each collumn
 			maxlen = 0
@@ -148,6 +151,8 @@ for Case in range (3):
 
 	# read in data from function Li_read_hdf5: Specify correct hdf5-file
 	time, x, y, ne, LiTemp, Li2p1, B0, Lp, q95, Te0, Ti0, ne0, omegaCi, rhoS, endtime = Li_read_hdf5('/pfs/home/bschiess/public/hesel/data/ASDEX.{0:03d}.h5'.format(Measurement))
+#	time, x, y, ne, LiTemp, Li2p1, B0, Lp, q95, Te0, Ti0, ne0, omegaCi, rhoS, endtime = Li_read_hdf5('/pfs/home/bschiess/itmwork/hesel_data/ASDEX.{0:03d}.h5'.format(Measurement))
+
 
 	# other settings and preparations  #############################################################################################
 
@@ -251,7 +256,7 @@ for Case in range (3):
 				
 			if not BlockCase:
 				Startrange = int(1.5/0.02)
-
+				Resolution = SetResolution
 			for Refdec_ind in range(Startrange, len(x),Resolution):			# Wall-region can be neglected (approximately 1.5-2cm) --> go through Refdec-Positions
 
 				if not BlockCase:					# otherwise this position is determined later
@@ -486,6 +491,7 @@ for Case in range (3):
 				rval = 0
 				vdmax = 0
 				vimax = 0
+				LiConAvrel = 0
 
 				if (Standardblob==True and BlobCount>0):				# only occurs if switch is on and if there is certain number of blobs
 
@@ -595,7 +601,7 @@ for Case in range (3):
 						if (up_index>5000 or low_index<1):			# exit loop for this analysis if a proper calculation is not possible here
 							blub=999
 							print(blub, 'in up/low_index')
-							Counterbad, blub, Delx, tau_B, Blobf,vr, rval, vdmax, vimax = write_nan(fu, shift_Block, Measurement,maxlen, NewData, Radial, WriteHeader, DenCase, EmCase, BlockCase, Counterbad, blub, t_start,t_end, x,y,Refdec_ind, shift, BlobCount, Delx, tau_B, Blobf,vr, rval, vdmax, vimax, B0, Lp, q95, Te0, Ti0, ne0, omegaCi, rhoS, endtime)
+							Counterbad, blub, Delx, tau_B, Blobf,vr, rval, vdmax, vimax = write_nan(fu, shift_Block, Measurement,maxlen, NewData, Radial, WriteHeader, DenCase, EmCase, BlockCase, Counterbad, blub, t_start,t_end, x,y,Refdec_ind, shift, BlobCount, Delx, tau_B, Blobf,vr, rval, vdmax, vimax, B0, Lp, q95, Te0, Ti0, ne0, omegaCi, rhoS, endtime, LiConAvrel)
 							continue
 						
 						Delx = abs(x_inter[low_index]-x_inter[up_index])/2.	# HWHM of intensity at Delt = 0.
@@ -637,7 +643,7 @@ for Case in range (3):
 							print(blub, 'in up/low_index')
 							if not BlockCase:
 								shift_Block = 0
-							Counterbad, blub, Delx, tau_B, Blobf,vr, rval, vdmax, vimax = write_nan(fu, shift_Block, Measurement,maxlen, NewData, Radial, WriteHeader, DenCase, EmCase, BlockCase, Counterbad, blub, t_start,t_end, x,y,Refdec_ind, shift, BlobCount, Delx, tau_B, Blobf,vr, rval, vdmax, vimax, B0, Lp, q95, Te0, Ti0, ne0, omegaCi, rhoS, endtime)
+							Counterbad, blub, Delx, tau_B, Blobf,vr, rval, vdmax, vimax = write_nan(fu, shift_Block, Measurement,maxlen, NewData, Radial, WriteHeader, DenCase, EmCase, BlockCase, Counterbad, blub, t_start,t_end, x,y,Refdec_ind, shift, BlobCount, Delx, tau_B, Blobf,vr, rval, vdmax, vimax, B0, Lp, q95, Te0, Ti0, ne0, omegaCi, rhoS, endtime, LiConAvrel)
 							continue
 						Delx = (x_axis[low_index]-x_axis[up_index])/2.		# HWHM of intensity at Delt = 0.
 						print('HWHM of standard blob: {0:.3f}cm'.format(Delx))
@@ -645,6 +651,9 @@ for Case in range (3):
 #					if blub==999:							# exit analysis because of bad result
 #						print(blub, 'one level deeper')
 #						break
+
+
+
 
 				#	Calculate self correlation time of standard blob a FWHM of I(x,Delt) at reference channel ####################################
 					
@@ -684,7 +693,7 @@ for Case in range (3):
 						print(blub)			# exit analysis because of bad result
 						if not BlockCase:
 							shift_Block = 0
-						Counterbad, blub, Delx, tau_B, Blobf,vr, rval, vdmax, vimax = write_nan(fu, shift_Block, Measurement,maxlen, NewData, Radial, WriteHeader, DenCase, EmCase, BlockCase, Counterbad, blub, t_start,t_end, x,y,Refdec_ind, shift, BlobCount, Delx, tau_B, Blobf,vr, rval, vdmax, vimax, B0, Lp, q95, Te0, Ti0, ne0, omegaCi, rhoS, endtime)
+						Counterbad, blub, Delx, tau_B, Blobf,vr, rval, vdmax, vimax = write_nan(fu, shift_Block, Measurement,maxlen, NewData, Radial, WriteHeader, DenCase, EmCase, BlockCase, Counterbad, blub, t_start,t_end, x,y,Refdec_ind, shift, BlobCount, Delx, tau_B, Blobf,vr, rval, vdmax, vimax, B0, Lp, q95, Te0, Ti0, ne0, omegaCi, rhoS, endtime, LiConAvrel)
 						continue
 					if (right_index==10000 or left_index==0):
 						sys.exit('Please change time-window, because HWHM-calculation could not take place')
@@ -711,11 +720,26 @@ for Case in range (3):
 						Blubern = ndimage.measurements.center_of_mass(LiConAv[m,:])		# Provides tuple (x and y) --> Blubern is intermediate to hold tuple and not used, while COM[m] holds the index of the COM on the x-axis
 						if (Blubern<0):
 							print('There a negative index values for COM location in x[m] --> change time Window or position of detector and look into it -- something is weird!')
-					#	print(Blubern[0])
+						if np.isnan(Blubern[0]):
+							blub=999
+							print(blub, 'COM')
+							Counterbad, blub, Delx, tau_B, Blobf,vr, rval, vdmax, vimax = write_nan(fu, shift_Block, Measurement,maxlen, NewData, Radial, WriteHeader, DenCase, EmCase, BlockCase, Counterbad, blub, t_start,t_end, x,y,Refdec_ind, shift, BlobCount, Delx, tau_B, Blobf,vr, rval, vdmax, vimax, B0, Lp, q95, Te0, Ti0, ne0, omegaCi, rhoS, endtime, LiConAvrel)
+							break
 						COM[m] = x[int(Blubern[0])]						# use only first part of tuple
+					if np.isnan(Blubern[0]):
+						continue
 					COM = np.array(COM)								# convert list to array
+				
 
 
+				# 	Calculation of relative fluction of intensity in spectrum or density ######################################################
+
+					LiConAv_maxrel = max(LiConAv[:,Refdec_ind])		# Maximum emission value
+					LiConAv_mean = np.mean(LiConAv[:Refdec_ind])		# Mean of emission value at this reference detector
+					LiConAvrel = LiConAv_maxrel/LiConAv_mean			# relative flucutation of intensity/density
+					print('Relative fluctuation of intensity/density for standard blob: ', LiConAvrel)
+					print('Mean fluctuation of intensity/density for standard blob: ', LiConAv_mean)
+					print('Max fluctuation of intensity/density for standard blob: ', LiConAv_maxrel)
 
 
 				###################################################################################################################################
@@ -739,7 +763,7 @@ for Case in range (3):
 
 					#	AX21: Standard-Blob: representative image of radial-temporal data I(x,Deta t) ###############################################
 
-						I2 = ax21.contourf(BloT, BloX, LiConAv,300)
+						#I2 = ax21.contourf(BloT, BloX, LiConAv,300)
 						if BlockCase:
 							ax21.plot([Delt[NullPos_ind],Delt[NullPos_ind]],[x_inter[up_index],x_inter[low_index]], linewidth=3, color='w')	# FWHM-plot
 						if not BlockCase:
@@ -759,9 +783,6 @@ for Case in range (3):
 						cax21=div21.append_axes("right",size="5%",pad=0.05)
 						chbar_I = plt.colorbar(I2,cax=cax21)
 						chbar_I.set_label('I(x,$\Delta$t) (a.u.)')
-
-
-
 
 					#	AX22: Radial profiles of intensity response 
 						I31 = ax22.plot(x,LiConAv[a_an,:], color='r')
@@ -898,13 +919,13 @@ for Case in range (3):
 
 					# data is list consisting of tubles (!) with data and format specifier
 					if not BlockCase and BlobCount>=0:
-						data = [("00"+str(Measurement), ""), (t_start,".2f"), (t_end-t_start, ".2f"), (x[Refdec_ind], ".2f"), (y[shift*2],".2f"), (BlobCount, "d"), (Delx, ".3f"), (tau_B,".4f"), (Blobf,".1f"), (vr, ".1f"), (rval,".1f"), (vdmax,".1f"), (vimax,".1f"), (B0,".2f"), (Lp,".2f"), (q95,".2f"), (Te0,".2f"), (Ti0,".2f"), (ne0,".2e"), (omegaCi,".2e"), (rhoS,".6f"), (endtime,".2f")]
+						data = [("00"+str(Measurement), ""), (t_start,".2f"), (t_end-t_start, ".2f"), (x[Refdec_ind], ".2f"), (y[shift*2],".2f"), (BlobCount, "d"), (Delx, ".3f"), (tau_B,".4f"), (Blobf,".1f"), (vr, ".1f"), (rval,".1f"), (vdmax,".1f"), (vimax,".1f"), (LiConAvrel,".2f"), (B0,".2f"), (Lp,".2f"), (q95,".2f"), (Te0,".2f"), (Ti0,".2f"), (ne0,".2e"), (omegaCi,".2e"), (rhoS,".6f"), (endtime,".2f")]
 					if not BlockCase and np.isnan(BlobCount):
-						data = [("00"+str(Measurement), ""), (t_start,".2f"), (t_end-t_start, ".2f"), (x[Refdec_ind], ".2f"), (y[shift*2],".2f"), (BlobCount, ".1f"), (Delx, ".1f"), (tau_B,".1f"), (Blobf,".1f"), (vr, ".1f"), (rval,".1f"), (vdmax,".1f"), (vimax,".1f"), (B0,".2f"), (Lp,".2f"), (q95,".2f"), (Te0,".2f"), (Ti0,".2f"), (ne0,".2e"), (omegaCi,".2e"), (rhoS,".6f"), (endtime,".2f")]
+						data = [("00"+str(Measurement), ""), (t_start,".2f"), (t_end-t_start, ".2f"), (x[Refdec_ind], ".2f"), (y[shift*2],".2f"), (BlobCount, ".1f"), (Delx, ".1f"), (tau_B,".1f"), (Blobf,".1f"), (vr, ".1f"), (rval,".1f"), (vdmax,".1f"), (vimax,".1f"), (LiConAvrel,".2f"), (B0,".2f"), (Lp,".2f"), (q95,".2f"), (Te0,".2f"), (Ti0,".2f"), (ne0,".2e"), (omegaCi,".2e"), (rhoS,".6f"), (endtime,".2f")]
 					if BlockCase and BlobCount>=0:
-						data = [("00"+str(Measurement), ""), (t_start,".2f"), (t_end-t_start, ".2f"), (x[Refdec_ind], ".2f"), (y[shift_Block*2],".2f"), (BlobCount, "d"), (Delx, ".3f"), (tau_B,".4f"), (Blobf,".1f"), (vr, ".1f"), (rval,".1f"), (vdmax,".1f"), (vimax,".1f"), (B0,".2f"), (Lp,".2f"), (q95,".2f"), (Te0,".2f"), (Ti0,".2f"), (ne0,".2e"), (omegaCi,".2e"), (rhoS,".6f"), (endtime,".2f")]
+						data = [("00"+str(Measurement), ""), (t_start,".2f"), (t_end-t_start, ".2f"), (x[Refdec_ind], ".2f"), (y[shift_Block*2],".2f"), (BlobCount, "d"), (Delx, ".3f"), (tau_B,".4f"), (Blobf,".1f"), (vr, ".1f"), (rval,".1f"), (vdmax,".1f"), (vimax,".1f"), (LiConAvrel,".2f"), (B0,".2f"), (Lp,".2f"), (q95,".2f"), (Te0,".2f"), (Ti0,".2f"), (ne0,".2e"), (omegaCi,".2e"), (rhoS,".6f"), (endtime,".2f")]
 					if np.isnan(BlobCount) and BlockCase:
-						data = [("00"+str(Measurement), ""), (t_start,".2f"), (t_end-t_start, ".2f"), (x[Refdec_ind], ".2f"), (y[shift_Block*2],".2f"), (BlobCount, ".1f"), (Delx, ".1f"), (tau_B,".1f"), (Blobf,".1f"), (vr, ".1f"), (rval,".1f"), (vdmax,".1f"), (vimax,".1f"), (B0,".2f"), (Lp,".2f"), (q95,".2f"), (Te0,".2f"), (Ti0,".2f"), (ne0,".2e"), (omegaCi,".2e"), (rhoS,".6f"), (endtime,".2f")]
+						data = [("00"+str(Measurement), ""), (t_start,".2f"), (t_end-t_start, ".2f"), (x[Refdec_ind], ".2f"), (y[shift_Block*2],".2f"), (BlobCount, ".1f"), (Delx, ".1f"), (tau_B,".1f"), (Blobf,".1f"), (vr, ".1f"), (rval,".1f"), (vdmax,".1f"), (vimax,".1f"), (LiConAvrel,".2f"), (B0,".2f"), (Lp,".2f"), (q95,".2f"), (Te0,".2f"), (Ti0,".2f"), (ne0,".2e"), (omegaCi,".2e"), (rhoS,".6f"), (endtime,".2f")]
 
 					myrow="{0:%a_%d/%m/%Y_%H:%M:%S}".format(datetime.now())		# initialize format for data output (first entry is going to be the date and time)
 					i=0
