@@ -5,9 +5,9 @@
 #$ -o tfunc.log
 #$ -e tfunc.err 
 #$ -notify
-#$ -N tfunc_dat
+#$ -N tfunc5
 #$ -V
-python $ITMHOME/public/Masterthesis/Blobanalysis/timefunction2_new_radial.py		
+python $ITMHOME/public/Masterthesis/Blobanalysis/timefunction2_new_radial_veltwind.py		
 ###timefunction2_new_radial.py
 ###timefunction2_new_radial.py
 ###exit

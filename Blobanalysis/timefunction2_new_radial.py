@@ -58,6 +58,8 @@ import resource
 # Evaluates the 'infinite' resolved beam emission, the density evaluation or the Block evaluation case
 
 Measurement=4				# select number of measurment to treat (is used for hdf-selection etc)
+storename = ''				# specify fileextension to be read in and to be stored (e.g '_dens_test', if file is called '004Emresults_dens_test')
+
 # Case Loop
 Counterbad = 0				# Number of bad events
 for Case in range (3):
@@ -100,14 +102,14 @@ for Case in range (3):
 		if not WriteHeader:
 			print('no header is written for outputfile!')
 		if EmCase and NewData:
-			fu = open('{0:03d}Emresults.txt'.format(Measurement), 'wb')		# use only writing (option 'w') if needed (ATTENTION: discards the whole file, appending uses 'a')
-			print('results are stored in {0:03d}Emresults.txt'.format(Measurement))
+			fu = open('{0:03d}Emresults{1:}.txt'.format(Measurement,storename), 'wb')		# use only writing (option 'w') if needed (ATTENTION: discards the whole file, appending uses 'a')
+			print('results are stored in {0:03d}Emresults{1:}.txt'.format(Measurement,storename))
 		if DenCase and NewData:
-			fu = open('{0:03d}Denresults.txt'.format(Measurement), 'wb')		# use only writing (option 'w') if needed (ATTENTION: discards the whole file, appending uses 'a')
-			print('results are stored in {0:03d}Denresults.txt'.format(Measurement))
+			fu = open('{0:03d}Denresults{1:}.txt'.format(Measurement,storename), 'wb')		# use only writing (option 'w') if needed (ATTENTION: discards the whole file, appending uses 'a')
+			print('results are stored in {0:03d}Denresults{1:}.txt'.format(Measurement,storename))
 		if BlockCase and NewData:
-			fu = open('{0:03d}Blockresults.txt'.format(Measurement), 'wb')		# use only writing (option 'w') if needed (ATTENTION: discards the whole file, appending uses 'a')	
-			print('results are stored in {0:03d}Blockresults.txt'.format(Measurement))
+			fu = open('{0:03d}Blockresults{1:}.txt'.format(Measurement,storename), 'wb')		# use only writing (option 'w') if needed (ATTENTION: discards the whole file, appending uses 'a')	
+			print('results are stored in {0:03d}Blockresults.{1:}.txt'.format(Measurement,storename))
 	#	Putting everything into lists and pre-processing for output ###########################################################
 		# Collumn index print for better human readability
 		if WriteHeader and NewData:
