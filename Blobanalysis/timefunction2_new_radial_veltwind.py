@@ -15,6 +15,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable # for colorbars
 from scipy import ndimage			# calculate com
 from scipy.interpolate import spline		# for interpolate COM position for good speed calculation of blob
 from scipy import stats, polyfit		# for linear interpolation data
+from scipy_cookbook_smooth import smooth	# for interpolating noisy data
 from hdf5_read import Li_read_hdf5		# read hdf5 file in
 from block_func import block_beam_func		# for calculating the block data
 from write_nan import write_nan			# for writing in bad cases
@@ -58,6 +59,9 @@ import resource
 # Evaluates the 'infinite' resolved beam emission, the density evaluation or the Block evaluation case
 
 Measurement=4				# select number of measurment to treat (is used for hdf-selection etc)
+storepref = '_veltwind'				# specify fileextension to be read in and to be stored (e.g '_dens_test', if file is called '004Emresults_dens_test')
+
+
 # Case Loop
 Counterbad = 0				# Number of bad events
 for Case in range (3):
@@ -78,6 +82,9 @@ for Case in range (3):
 	if (EmCase and DenCase or EmCase and BlockCase or DenCase and BlockCase):		#if you do something wrong here ;)
 		sys.exit('Accidentally set two cases for evaluation!')
 
+	Noise = True				# switch on additive white Gaussian noise --> Very time consuming!
+
+	Smooth = True				# smoothing noisy data afterwards
 
 	yvariation = True		# Calculate more values for y-variation
 	
@@ -90,6 +97,11 @@ for Case in range (3):
 	blub = 0			# emergency exit for bad results
 
 	# Writing head of file for radial case ########################################################################################
+	if Noise:
+		storename = storepref+'_SNR{0:}'.format(SNR)			# change file extension as needed!
+	if Smooth:
+		storename = storepref+'_SNR{0:}'.format(SNR)+'_Smooth'			# change file extension as needed!
+
 	if Radial:	
 
 		WriteHeader = True 
@@ -97,14 +109,14 @@ for Case in range (3):
 		if not WriteHeader:
 			print('no header is written for outputfile!')
 		if EmCase and NewData:
-			fu = open('{0:03d}Emresults_veltwind.txt'.format(Measurement), 'wb')		# use only writing (option 'w') if needed (ATTENTION: discards the whole file, appending uses 'a')
-			print('results are stored in {0:03d}Emresults_veltwind.txt'.format(Measurement))
+			fu = open('{0:03d}Emresults{1:}.txt'.format(Measurement,storename), 'wb')		# use only writing (option 'w') if needed (ATTENTION: discards the whole file, appending uses 'a')
+			print('results are stored in {0:03d}Emresults{1:}.txt'.format(Measurement,storename))
 		if DenCase and NewData:
-			fu = open('{0:03d}Denresults_veltwind.txt'.format(Measurement), 'wb')		# use only writing (option 'w') if needed (ATTENTION: discards the whole file, appending uses 'a')
-			print('results are stored in {0:03d}Denresults_veltwind.txt'.format(Measurement))
+			fu = open('{0:03d}Denresults{1:}.txt'.format(Measurement,storename), 'wb')		# use only writing (option 'w') if needed (ATTENTION: discards the whole file, appending uses 'a')
+			print('results are stored in {0:03d}Denresults{1:}.txt'.format(Measurement,storename))
 		if BlockCase and NewData:
-			fu = open('{0:03d}Blockresults_veltwind.txt'.format(Measurement), 'wb')		# use only writing (option 'w') if needed (ATTENTION: discards the whole file, appending uses 'a')	
-			print('results are stored in {0:03d}Blockresults_veltwind.txt'.format(Measurement))
+			fu = open('{0:03d}Blockresults{1:}.txt'.format(Measurement,storename), 'wb')		# use only writing (option 'w') if needed (ATTENTION: discards the whole file, appending uses 'a')	
+			print('results are stored in {0:03d}Blockresults{1:}.txt'.format(Measurement,storename))
 	#	Putting everything into lists and pre-processing for output ###########################################################
 		# Collumn index print for better human readability
 		if WriteHeader and NewData:
@@ -193,6 +205,44 @@ for Case in range (3):
 		print('Position of Beam: {0:.2f}cm'.format(y[shift*2]))
 		print('Beamwidth: {0:.2f}cm'.format(y[shift2+shift2]))	
 			
+		if Noise:
+			if not BlockCase:
+				for x_ind in range(mn):
+					noiLi = np.random.normal(0,np.mean(Li2p1[:,shift*2,x_ind])/SNR,timestep)
+		#			noine = np.random.normal(0,np.mean(ne[:,y_ind,x_ind]),timestep)
+					for t_ind in range(timestep):
+						Li2p1[t_ind,shift*2,x_ind] = Li2p1[t_ind,shift*2,x_ind]+noiLi[t_ind]
+		#				ne[t_ind,y_ind,x_ind] = ne[t_ind,y_ind,x_ind]+noine[t_ind]
+			if BlockCase:
+				for x_ind in range(mn):
+					for y_ind in range(shift*2-shift2-2,shift*2+shift2+2):				# + 2 safty distance
+						noiLi = np.random.normal(0,np.mean(Li2p1[:,y_ind,x_ind])/SNR,timestep)
+			#			noine = np.random.normal(0,np.mean(ne[:,y_ind,x_ind]),timestep)
+						for t_ind in range(timestep):
+							Li2p1[t_ind,y_ind,x_ind] = Li2p1[t_ind,y_ind,x_ind]+noiLi[t_ind]
+			#				ne[t_ind,y_ind,x_ind] = ne[t_ind,y_ind,x_ind]+noine[t_ind]
+
+			# smoothing noisy data
+			if Smooth:
+				Li2p1hn = Li2p1.copy()
+			#	Li2p1hm = Li2p1.copy()
+			#	Li2p1ba = Li2p1.copy()
+			#	Li2p1bl = Li2p1.copy()
+				smoothlen = 71
+				if not BlockCase:
+					for t_ind in range(timestep):
+						Li2p1hn[t_ind,shift*2,:] = smooth(Li2p1[t_ind,shift*2,:],window_len=smoothlen,window='hanning')
+					#	Li2p1hm[t_ind,shift*2,:] = smooth(Li2p1[t_ind,shift*2,:],window_len=smoothlen,window='hamming')
+					#	Li2p1ba[t_ind,shift*2,:] = smooth(Li2p1[t_ind,shift*2,:],window_len=smoothlen,window='bartlett')
+					#	Li2p1bl[t_ind,shift*2,:] = smooth(Li2p1[t_ind,shift*2,:],window_len=smoothlen,window='blackman')
+				if BlockCase:
+					for y_ind in range(shift*2-shift2-2,shift*2+shift2+2):				# + 2 safty distance
+						for t_ind in range(timestep):
+							Li2p1hn[t_ind,y_ind,:] = smooth(Li2p1[t_ind,shift*2,:],window_len=smoothlen,window='hanning')
+						#	Li2p1hm[t_ind,y_ind,:] = smooth(Li2p1[t_ind,shift*2,:],window_len=smoothlen,window='hamming')
+						#	Li2p1ba[t_ind,y_ind,:] = smooth(Li2p1[t_ind,shift*2,:],window_len=smoothlen,window='bartlett')
+						#	Li2p1bl[t_ind,y_ind,:] = smooth(Li2p1[t_ind,shift*2,:],window_len=smoothlen,window='blackman')
+				Li2p1 = Li2p1hn.copy()
 
 		# use the block-emission data for the block case:
 		if BlockCase:
@@ -626,7 +676,7 @@ for Case in range (3):
 								max_ind = c				# index on x-axis of maximum emission value
 
 						# find closest index to half-max-position (lower index)	
-						PeakC = [None]*10					# peak counter to determine for sure the position of half-max
+						PeakC = [None]*100					# peak counter to determine for sure the position of half-max
 						RandCount = 1
 						for d in range (max_ind):
 							if (LiConAv_smooth_Null[d]>LiConAv_max/2 and LiConAv_smooth_Null[d-1]<LiConAv_max/2):
@@ -635,7 +685,7 @@ for Case in range (3):
 						low_index = max(PeakC)					# lower index is maximum for last time it surpasses HM
 
 						# find closest index to half-max-position (upper index)
-						PeakC = [None]*10					# peak counter array to determine for sure the position of half-max
+						PeakC = [None]*100					# peak counter array to determine for sure the position of half-max
 						PeakC = np.array(PeakC)
 						PeakC.fill(10000)					# fill with high values (higher than len(x), since we need the lowest one
 						RandCount = 1
@@ -665,7 +715,7 @@ for Case in range (3):
 								max_ind = c				# index on x-axis of maximum emission value
 
 						# find closest index to half-max-position (lower index)	
-						PeakC = [np.NaN]*10					# peak counter to determine for sure the position of half-max
+						PeakC = [np.NaN]*100					# peak counter to determine for sure the position of half-max
 						RandCount = 1
 						for d in range (max_ind):
 							if (LiConAv[NullPos_ind,d]>LiConAv_max/2 and LiConAv[NullPos_ind,d-1]<LiConAv_max/2):
@@ -674,7 +724,7 @@ for Case in range (3):
 						low_index = np.nanmax(PeakC)					# lower index is maximum for last time it surpasses HM
 
 						# find closest index to half-max-position (upper index)
-						PeakC = [None]*10					# peak counter array to determine for sure the position of half-max
+						PeakC = [None]*100					# peak counter array to determine for sure the position of half-max
 						PeakC = np.array(PeakC)
 						PeakC.fill(10000)					# fill with high values (higher than len(x), since we need the lowest one
 						RandCount = 1
@@ -719,7 +769,7 @@ for Case in range (3):
 							self_ind = c				# index on time-window-axis of maximum emission value
 
 					# find closest index to half-max-position (lower index)	
-					PeakC = [None]*10					# peak counter to determine for sure the position of half-max
+					PeakC = [None]*100					# peak counter to determine for sure the position of half-max
 					RandCount = 1
 					for d in range (self_ind):
 						if (LiConAv_self_smooth_long[d]>LiConAv_self_long/2 and LiConAv_self_smooth_long[d-1]<LiConAv_self_long/2):
@@ -728,7 +778,7 @@ for Case in range (3):
 					left_index = max(PeakC)					# lower index is maximum for last time it surpasses HM
 
 					# find closest index to half-max-position (upper index)
-					PeakC = [None]*10					# peak counter array to determine for sure the position of half-max
+					PeakC = [None]*100					# peak counter array to determine for sure the position of half-max
 					PeakC = np.array(PeakC)
 					PeakC.fill(10000)					# fill with high values (higher than len(x), since we need the lowest one
 					RandCount = 1
@@ -743,6 +793,7 @@ for Case in range (3):
 						if not BlockCase:
 							shift_Block = 0
 						Counterbad, blub, Delx, tau_B, Blobf,vr, rval, vdmax, vimax = write_nan(fu, shift_Block, Measurement,maxlen, NewData, Radial, WriteHeader, DenCase, EmCase, BlockCase, Counterbad, blub, t_start,t_end, x,y,Refdec_ind, shift, BlobCount, Delx, tau_B, Blobf,vr, rval, vdmax, vimax, B0, Lp, q95, Te0, Ti0, ne0, omegaCi, rhoS, endtime, LiConAvrel)
+						tau_B = 0
 						continue
 					if (right_index==10000 or left_index==0):
 						sys.exit('Please change time-window, because HWHM-calculation could not take place')
@@ -772,6 +823,8 @@ for Case in range (3):
 						if np.isnan(Blubern[0]):
 							blub=999
 							print(blub, 'COM')
+							if not BlockCase:
+								shift_Block = 0	
 							Counterbad, blub, Delx, tau_B, Blobf,vr, rval, vdmax, vimax = write_nan(fu, shift_Block, Measurement,maxlen, NewData, Radial, WriteHeader, DenCase, EmCase, BlockCase, Counterbad, blub, t_start,t_end, x,y,Refdec_ind, shift, BlobCount, Delx, tau_B, Blobf,vr, rval, vdmax, vimax, B0, Lp, q95, Te0, Ti0, ne0, omegaCi, rhoS, endtime, LiConAvrel)
 							break
 						COM[m] = x[int(Blubern[0])]						# use only first part of tuple

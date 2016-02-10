@@ -38,12 +38,13 @@ import pdb					# for error tracking (set_trace at right position)
 ########### READING DATA AND PRELIMINARY settings #############################################################################
 ###############################################################################################################################
 
-Measurement = 4
+filename = '_veltwind_SNR=1_smooth'				# specify fileextension to be read in and to be stored (e.g '_dens_test', if file is called '004Emresults_dens_test')
 
+Measurement = 4				# specify number of measurement without leading zeros, which is the prefix of the file in form (will be extended later to e.g. 004) 
 
-time, x_pos, y_pos, f_B, rho_x, tau_B, v_r, v_rmist, vdmax, vimax, Relem, B0, Lp,q95 = np.loadtxt('{0:03d}Emresults_veltwind.txt'.format(Measurement), usecols = (3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16, 17), unpack = True, skiprows=2)
-time2, x_pos2,y_pos2, f_B2, rho_x2, tau_B2, v_r2, v_rmist2, vdmax2, vimax2, Relem2, B02, Lp2,q952 = np.loadtxt('{0:03d}Denresults_veltwind.txt'.format(Measurement), usecols = (3, 4, 5,  6, 7, 8, 10, 11, 12, 13, 14, 15, 16, 17), unpack = True, skiprows=2)
-time3, x_pos3, y_pos3, f_B3, rho_x3, tau_B3, v_r3, v_rmist3, vdmax3, vimax3, Relem3, B03, Lp3,q953 = np.loadtxt('{0:03d}Blockresults_veltwind.txt'.format(Measurement), usecols = (3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16, 17), unpack = True, skiprows=2)
+time, x_pos, y_pos, f_B, rho_x, tau_B, v_r, v_rmist, vdmax, vimax, Relem, B0, Lp,q95 = np.loadtxt('{0:03d}Emresults{1:}.txt'.format(Measurement,filename), usecols = (3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16, 17), unpack = True, skiprows=2)
+time2, x_pos2,y_pos2, f_B2, rho_x2, tau_B2, v_r2, v_rmist2, vdmax2, vimax2, Relem2, B02, Lp2,q952 = np.loadtxt('{0:03d}Denresults{1:}.txt'.format(Measurement,filename), usecols = (3, 4, 5,  6, 7, 8, 10, 11, 12, 13, 14, 15, 16, 17), unpack = True, skiprows=2)
+time3, x_pos3, y_pos3, f_B3, rho_x3, tau_B3, v_r3, v_rmist3, vdmax3, vimax3, Relem3, B03, Lp3,q953 = np.loadtxt('{0:03d}Blockresults{1:}.txt'.format(Measurement,filename), usecols = (3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16, 17), unpack = True, skiprows=2)
 
 
 #	time, x_pos, y_pos, f_B, rho_x, tau_B, v_r, v_rmist, vdmax, vimax, B0, Lp,q95 = np.loadtxt('{0:03d}Emresults.txt'.format(Measurement), usecols = (3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16), unpack = True, skiprows=2)
@@ -154,7 +155,7 @@ f_B3m = np.reshape(f_B3, (leny3, lenx3))
 rho_x3m=np.reshape(rho_x3, (leny3,lenx3))
 v_r3m =np.reshape(v_r3, (leny3,lenx3))
 tau_B3m =np.reshape(tau_B3, (leny3,lenx3))
-v_rmist3m =np.reshape(v_rmist2, (leny3,lenx2))
+v_rmist3m =np.reshape(v_rmist3, (leny3,lenx3))
 vdmax3m =np.reshape(vdmax3, (leny3,lenx3))
 vimax3m =np.reshape(vimax3, (leny3,lenx3))
 
@@ -432,7 +433,7 @@ ax7.errorbar(x,vimax, yerr = vimaxerr,color =  'k',marker='s',label='Emission da
 ax7.errorbar(x2,vimax2, yerr = vimax2err, color = 'b',marker='o',label='Density data')
 ax7.errorbar(x3,vimax3, yerr = vimax3err, color = 'g',marker='D',label='Block data')
 ax7.axvline(0,color='k', linestyle='-.')
-ax7.set_xlabel('beam axis $x$ (cm)', labelpad= 0)			# switched of, since axis in row below
+#ax7.set_xlabel('beam axis $x$ (cm)', labelpad= 0)			# switched of, since axis in row below
 ax7.set_ylabel(r'Maximum velocities $v_{imax}$ (m/s)')
 ax7.get_yaxis().set_label_coords(-0.11,0.5)
 ax7.set_title(r'Maximum velocities for interpolated data')
@@ -443,18 +444,18 @@ ax8.errorbar(x2,Relem2, yerr = Relem2err, color = 'b',marker='o',label='Density 
 ax8.errorbar(x3,Relem3, yerr = Relem3err, color = 'g',marker='D',label='Block data')
 ax8.axvline(0,color='k', linestyle='-.')
 ax8.set_xlabel('beam axis $x$ (cm)', labelpad= 0)			# switched of, since axis in row below
-ax8.set_ylabel(r'relative emission $\delta I/I$ or $\delta n/n')
+ax8.set_ylabel(r'relative emission $\delta I/I$ or $\delta n/n$')
 ax8.get_yaxis().set_label_coords(-0.11,0.5)
 ax8.set_title(r'Blob amplitude')
 
-leg = ax8.legend(loc='upper center', bbox_to_anchor = (0.225,-0.18),fancybox = True, numpoints = 1)
+leg = ax8.legend(loc='upper center', bbox_to_anchor = (-0.1,-0.05),fancybox = True, numpoints = 1)
 
 # leg = ax7.legend(loc='upper center', bbox_to_anchor = (0.225,-0.18),fancybox = True, numpoints = 1)
 
 
 
 
-f1.savefig('{0:03d}FigRadial_veltwind'.format(Measurement))
+f1.savefig('{0:03d}FigRadial{1:}'.format(Measurement,filename))
 plt.show()
 
 

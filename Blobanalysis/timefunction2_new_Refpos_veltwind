@@ -14,6 +14,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable # for colorbars
 from scipy import ndimage			# calculate com
 from scipy.interpolate import spline		# for interpolate COM position for good speed calculation of blob
 from scipy import stats, polyfit		# for linear interpolation data
+from scipy_cookbook_smooth import smooth	# for interpolating data
 from hdf5_read import Li_read_hdf5		# read hdf5 file in
 from block_func import block_beam_func		# for calculating the block data
 from dect_func import dect_func
@@ -68,10 +69,30 @@ Standardblob= True			# switch for calculations
 
 NewData = False				# Switch to write output
 
+saving = True				# save images
+
+
+Noise = True				# switch on additive white Gaussian noise --> Very time consuming!
+
+Smooth = False				# smooth noisy data
 
 # data reading  ################################################################################################################
 
+# name of files to store
+if EmCase:
+	storepref = 'Em_data_veltwind'				# 'intermediate' appendix not to be changed
+if DenCase:
+	storepref = 'Den_data_veltwind'
+if BlockCase:
+	storepref = 'Block_data_veltwind'
+
+if Noise:
+	storename = storepref+'_SNR{0:}'.format(SNR)			# change file extension as needed!
+if Smooth:
+	storename = storepref+'_SNR{0:}'.format(SNR)+'_Smooth'			# change file extension as needed!
+
 # read in data from hdf5-file via external function
+
 Measurement=4						# will be used for file search and in output
 print('Data is going to be read from file: ASDEX.{0:03d}.h5'.format(Measurement))
 
@@ -102,6 +123,78 @@ shift2 = int(b/2/y[-1]*stepsize)		# shift*2-shift2 is now left index of beam edg
 print('Position of Beam: {0:.2f}cm'.format(y[shift*2]))
 print('Beamwidth: {0:.2f}cm'.format(y[shift2+shift2]))	
 	
+if Noise:
+	# plot to see the impact of Noise
+	f3=plt.figure(figsize=(16,16), facecolor = 'white')
+	gs = gridspec.GridSpec(2, 1,				# ratio of grid space (2 plots per collumn, 3 per row)
+			width_ratios=[1],		# width ratios of the 3 plots per row
+			height_ratios=[1,1]		# height ratios of the 2 polots per collumn
+			)
+	ax111 = plt.subplot(gs[0])
+	ax222 = plt.subplot(gs[1])
+	ax111.plot(x,Li2p1[position,shift*2,:], 'b', label = 'original data')
+	ax111.set_ylabel('Li$_{2p}$ emission fluctuation (a.u.)')
+	ax111.set_xlabel('beam axis $x$ (cm)')
+	ax111.set_title('input beam emission spectrum at {0:.2f}ms and y={1:.2f}cm'.format(point,Refdec))
+
+	if not BlockCase:
+		for x_ind in range(mn):
+			noiLi = np.random.normal(0,np.mean(Li2p1[:,shift*2,x_ind])/SNR,timestep)
+#			noine = np.random.normal(0,np.mean(ne[:,y_ind,x_ind]),timestep)
+			for t_ind in range(timestep):
+				Li2p1[t_ind,shift*2,x_ind] = Li2p1[t_ind,shift*2,x_ind]+noiLi[t_ind]
+#				ne[t_ind,y_ind,x_ind] = ne[t_ind,y_ind,x_ind]+noine[t_ind]
+		Li2p1noise=Li2p1.copy()
+
+	if BlockCase:
+		for x_ind in range(mn):
+			for y_ind in range(shift*2-shift2-2,shift*2+shift2+2):				# + 2 safty distance
+				noiLi = np.random.normal(0,np.mean(Li2p1[:,y_ind,x_ind])/SNR,timestep)
+	#			noine = np.random.normal(0,np.mean(ne[:,y_ind,x_ind]),timestep)
+				for t_ind in range(timestep):
+					Li2p1[t_ind,y_ind,x_ind] = Li2p1[t_ind,y_ind,x_ind]+noiLi[t_ind]
+	#				ne[t_ind,y_ind,x_ind] = ne[t_ind,y_ind,x_ind]+noine[t_ind]
+		Li2p1noise=Li2p1.copy()
+
+	# smoothing possible noisy data
+	Li2p1hn = Li2p1.copy()
+	Li2p1hm = Li2p1.copy()
+	Li2p1ba = Li2p1.copy()
+	Li2p1bl = Li2p1.copy()
+	smoothlen = 71
+	if not BlockCase:
+		for t_ind in range(timestep):
+			Li2p1hn[t_ind,shift*2,:] = smooth(Li2p1[t_ind,shift*2,:],window_len=smoothlen,window='hanning')
+			Li2p1hm[t_ind,shift*2,:] = smooth(Li2p1[t_ind,shift*2,:],window_len=smoothlen,window='hamming')
+			Li2p1ba[t_ind,shift*2,:] = smooth(Li2p1[t_ind,shift*2,:],window_len=smoothlen,window='bartlett')
+			Li2p1bl[t_ind,shift*2,:] = smooth(Li2p1[t_ind,shift*2,:],window_len=smoothlen,window='blackman')
+	if BlockCase:
+		for y_ind in range(shift*2-shift2-2,shift*2+shift2+2):				# + 2 safty distance
+			for t_ind in range(timestep):
+				Li2p1hn[t_ind,y_ind,:] = smooth(Li2p1[t_ind,shift*2,:],window_len=21,window='hanning')
+				Li2p1hm[t_ind,y_ind,:] = smooth(Li2p1[t_ind,shift*2,:],window_len=31,window='hamming')
+				Li2p1ba[t_ind,y_ind,:] = smooth(Li2p1[t_ind,shift*2,:],window_len=41,window='bartlett')
+				Li2p1bl[t_ind,y_ind,:] = smooth(Li2p1[t_ind,shift*2,:],window_len=51,window='blackman')
+	
+#	use fitting data only if smoothing is wanted:
+	if Smooth:
+		Li2p1 = Li2p1hn.copy()
+	
+	ax111.plot(x,Li2p1hn[position,shift*2,:],'r', label='Hanning')
+	ax111.plot(x,Li2p1hm[position,shift*2,:],'g', label = 'Hamming')
+	ax111.plot(x,Li2p1ba[position,shift*2,:],'k', label = 'Bartlett' )
+	ax111.plot(x,Li2p1bl[position,shift*2,:],'m', label = 'Blackman')
+	ax111.legend(loc='best',fancybox = True, numpoints = 1)
+
+	ax222.plot(x,Li2p1hn[position,shift*2,:],'r', label = 'Hanning')
+	ax222.plot(x,Li2p1noise[position,shift*2,:],'b', label = 'Noisy data with SNR={0:d}'.format(SNR))
+	ax222.set_ylabel('Li$_{2p}$ emission fluctuation (a.u.)')
+	ax222.set_xlabel('beam axis $x$ (cm)')
+	ax222.set_title('beam emission spectrum with SNR={0:d} at {1:.2f}ms and y={2:.2f}cm'.format(SNR, point,Refdec))
+	ax222.legend(loc='best',fancybox = True, numpoints = 1)
+	#plt.show()
+	if saving: 
+		f3.savefig('{0:03d}Noise_Fitting_SNR{1:d}'.format(Measurement,SNR))
 
 # use the block-emission data for the block case:
 if BlockCase:
@@ -375,6 +468,7 @@ for xlabel_i in cax4.get_xticklabels():
     xlabel_i.set_fontsize(0.0)
     xlabel_i.set_visible(False)
 
+plt.tight_layout()
 
 ##################################################################################################################################
 
@@ -885,6 +979,10 @@ if NewData:					# Write only, if needed
 	fu.write(myrow)							# write to file
 	fu.close()
 
+plt.tight_layout()
 
+if saving:
+	f1.savefig('{0:03d}Fig1_{1:}'.format(Measurement,storename))
+	f2.savefig('{0:03d}Fig2_{1:}'.format(Measurement,storename))
 
 plt.show()
