@@ -64,7 +64,7 @@ storepref = '_veltwind'				# specify fileextension to be read in and to be store
 
 # Case Loop
 Counterbad = 0				# Number of bad events
-for Case in range (3):
+for Case in range (2,3):
 	if Case == 0:
 		EmCase = True				# infinite emission case --> actually always true, since every different setting during analysis is made by if-statements with the other two cases --> can stay false
 		DenCase = False				# density analysis case
@@ -98,9 +98,9 @@ for Case in range (3):
 
 	# Writing head of file for radial case ########################################################################################
 	if Noise:
-		storename = storepref+'_SNR{0:}'.format(SNR)			# change file extension as needed!
+		storename = storepref+'_SNR{0:03d}'.format(int(SNR*100))			# change file extension as needed!
 	if Smooth:
-		storename = storepref+'_SNR{0:}'.format(SNR)+'_Smooth'			# change file extension as needed!
+		storename = storepref+'_SNR{0:03d}'.format(int(SNR*100))+'_Smooth'			# change file extension as needed!
 
 	if Radial:	
 
@@ -192,8 +192,34 @@ for Case in range (3):
 
 	if BlockCase:		# stuff which is always overwritten inside of Block-Case-loop and which has to be copied in...
 		xcop = x.copy()
-		Li2p1cop = Li2p1.copy()
+		Li2p1cop = Li2p1.copy()			         # used for passing in detector function
 		mncop = mn
+
+	
+	if Noise:
+		for x_ind in range(mn):
+			for y_ind in range(stepsize):				# + 2 safty distance
+				noiLi = np.random.normal(0,np.mean(Li2p1[:,y_ind,x_ind])/SNR,timestep)
+				for t_ind in range(timestep):
+					Li2p1[t_ind,y_ind,x_ind] = Li2p1[t_ind,y_ind,x_ind]+noiLi[t_ind]
+		Li2p1noise=Li2p1.copy()
+
+		# smoothing noisy data
+		if Smooth:
+			Li2p1hn = Li2p1.copy()
+		#	Li2p1hm = Li2p1.copy()
+		#	Li2p1ba = Li2p1.copy()
+		#	Li2p1bl = Li2p1.copy()
+			smoothlen = 71
+			for t_ind in range(timestep):
+				for y_ind in range(stepsize):
+					Li2p1hn[t_ind,y_ind,:] = smooth(Li2p1[t_ind,y_ind,:],window_len=smoothlen,window='hanning')
+				#	Li2p1hm[t_ind,shift*2,:] = smooth(Li2p1[t_ind,shift*2,:],window_len=smoothlen,window='hamming')
+				#	Li2p1ba[t_ind,shift*2,:] = smooth(Li2p1[t_ind,shift*2,:],window_len=smoothlen,window='bartlett')
+				#	Li2p1bl[t_ind,shift*2,:] = smooth(Li2p1[t_ind,shift*2,:],window_len=smoothlen,window='blackman')
+			Li2p1 = Li2p1hn.copy()
+			Li2p1cop = Li2p1hn.copy()	# used for passing to detector function
+
 	#define center of beam and shift for correct beam position:
 	if yvariation:
 		beamrange = np.arange (y_starting,y_ending,yResolution)
@@ -204,46 +230,7 @@ for Case in range (3):
 		shift2 = int(b/2/y[-1]*stepsize)		# shift*2-shift2 is now left index of beam edge and shift*2+shift2 the right one
 		print('Position of Beam: {0:.2f}cm'.format(y[shift*2]))
 		print('Beamwidth: {0:.2f}cm'.format(y[shift2+shift2]))	
-			
-		if Noise:
-			if not BlockCase:
-				for x_ind in range(mn):
-					noiLi = np.random.normal(0,np.mean(Li2p1[:,shift*2,x_ind])/SNR,timestep)
-		#			noine = np.random.normal(0,np.mean(ne[:,y_ind,x_ind]),timestep)
-					for t_ind in range(timestep):
-						Li2p1[t_ind,shift*2,x_ind] = Li2p1[t_ind,shift*2,x_ind]+noiLi[t_ind]
-		#				ne[t_ind,y_ind,x_ind] = ne[t_ind,y_ind,x_ind]+noine[t_ind]
-			if BlockCase:
-				for x_ind in range(mn):
-					for y_ind in range(shift*2-shift2-2,shift*2+shift2+2):				# + 2 safty distance
-						noiLi = np.random.normal(0,np.mean(Li2p1[:,y_ind,x_ind])/SNR,timestep)
-			#			noine = np.random.normal(0,np.mean(ne[:,y_ind,x_ind]),timestep)
-						for t_ind in range(timestep):
-							Li2p1[t_ind,y_ind,x_ind] = Li2p1[t_ind,y_ind,x_ind]+noiLi[t_ind]
-			#				ne[t_ind,y_ind,x_ind] = ne[t_ind,y_ind,x_ind]+noine[t_ind]
-
-			# smoothing noisy data
-			if Smooth:
-				Li2p1hn = Li2p1.copy()
-			#	Li2p1hm = Li2p1.copy()
-			#	Li2p1ba = Li2p1.copy()
-			#	Li2p1bl = Li2p1.copy()
-				smoothlen = 71
-				if not BlockCase:
-					for t_ind in range(timestep):
-						Li2p1hn[t_ind,shift*2,:] = smooth(Li2p1[t_ind,shift*2,:],window_len=smoothlen,window='hanning')
-					#	Li2p1hm[t_ind,shift*2,:] = smooth(Li2p1[t_ind,shift*2,:],window_len=smoothlen,window='hamming')
-					#	Li2p1ba[t_ind,shift*2,:] = smooth(Li2p1[t_ind,shift*2,:],window_len=smoothlen,window='bartlett')
-					#	Li2p1bl[t_ind,shift*2,:] = smooth(Li2p1[t_ind,shift*2,:],window_len=smoothlen,window='blackman')
-				if BlockCase:
-					for y_ind in range(shift*2-shift2-2,shift*2+shift2+2):				# + 2 safty distance
-						for t_ind in range(timestep):
-							Li2p1hn[t_ind,y_ind,:] = smooth(Li2p1[t_ind,shift*2,:],window_len=smoothlen,window='hanning')
-						#	Li2p1hm[t_ind,y_ind,:] = smooth(Li2p1[t_ind,shift*2,:],window_len=smoothlen,window='hamming')
-						#	Li2p1ba[t_ind,y_ind,:] = smooth(Li2p1[t_ind,shift*2,:],window_len=smoothlen,window='bartlett')
-						#	Li2p1bl[t_ind,y_ind,:] = smooth(Li2p1[t_ind,shift*2,:],window_len=smoothlen,window='blackman')
-				Li2p1 = Li2p1hn.copy()
-
+		
 		# use the block-emission data for the block case:
 		if BlockCase:
 			x_ori = xcop
@@ -367,7 +354,7 @@ for Case in range (3):
 						density = ax1.contourf(Y,X,ne[position,:,:],300)
 					#ax1.invert_yaxis()
 					ax1.axvline(bcenter,color='w', linestyle='-')
-					ax1.set_xlabel('axis $y$ (cm)', labelpad= -10)			# switched of, since axis in row below
+					ax1.set_xlabel('axis $y$ (cm)')			# switched of, since axis in row below
 					ax1.set_ylabel('beam axis $x$ (cm)')
 					ax1.set_title('input density $n_e$ (cm$^{-3}$) at %.3g ms' % (point))
 					#ax1.set_xlim(xmin,xmax)
@@ -387,7 +374,7 @@ for Case in range (3):
 						#ax2.invert_yaxis()
 						ax2.axvline(bcenter,color='w', linestyle='-')
 						ax2.set_ylabel('beam axis $x$ (cm)')
-						ax2.set_xlabel('axis $y$ (cm)', labelpad=-10)
+						ax2.set_xlabel('axis $y$ (cm)')
 						ax2.set_title('beam emission spectrum at %.3g ms'% (point))
 						#ax2.set_xlim(xmin,xmax)
 						#ax2.set_ylim(ymin,ymax)
@@ -401,7 +388,7 @@ for Case in range (3):
 						#ax2.invert_yaxis()
 						ax2.axvline(bcenter,color='w', linestyle='-')
 						ax2.set_ylabel('beam axis $x$ (cm)')
-						ax2.set_xlabel('axis $y$ (cm)', labelpad=-10)
+						ax2.set_xlabel('axis $y$ (cm)')
 						ax2.set_title('Density fluctuation at %.3g ms'% (point))
 						#ax2.set_xlim(xmin,xmax)
 						#ax2.set_ylim(ymin,ymax)
@@ -421,7 +408,7 @@ for Case in range (3):
 					ax3.axhline(x[Refdec_ind],color='w',linestyle='-')
 					ax3.axvline(point,color='w', linestyle='-')
 					ax3.set_ylabel('beam axis $x$ (cm)')			
-					ax3.set_xlabel('time $t$ (ms)', labelpad=-10)
+					ax3.set_xlabel('time $t$ (ms)')
 					if not DenCase:
 						ax3.set_title('timeseries of emission fluctuation for beam position %.3g cm' % (bcenter))
 					if DenCase:
@@ -507,7 +494,7 @@ for Case in range (3):
 						ax4.set_ylabel('Li$_{2p}$ emission (a.u.)')
 					if DenCase:
 						ax4.set_ylabel('density $n_e$ (cm$^{-3}$)')
-					ax4.set_xlabel('time $t$ (ms)',labelpad=-10)
+					ax4.set_xlabel('time $t$ (ms)')
 					ax4.set_title('Series for Detector Position %.2g cm' % (Refdec))
 					ax4.set_xlim(t_start,t_end)
 					#ax4.set_ylim(ymin,ymax)
@@ -870,7 +857,7 @@ for Case in range (3):
 						if not BlockCase:
 							ax21.plot([Delt[NullPos_ind],Delt[NullPos_ind]],[x[up_index],x[low_index]], linewidth=3, color='w')	# FWHM-plot
 						ax21.plot([self_TWind_inter_long[left_index],self_TWind_inter_long[right_index]],[x[Refdec_ind],x[Refdec_ind]],linewidth=3, color = 'w')
-						ax21.set_xlabel('time $\Delta$t', labelpad= -10)			
+						ax21.set_xlabel('time $\Delta$t')			
 						ax21.set_ylabel('beam axis $x$ (cm)')
 						ax21.set_title('Spectrum for standard blob')
 						#time points for representatives blobs are drawn into plot
@@ -905,8 +892,8 @@ for Case in range (3):
 						ax22.axvline(COM[a_an],color='r', linestyle='--')
 						ax22.axvline(COM[b_an],color='g', linestyle='--')
 						ax22.axvline(COM[c_an],color='b', linestyle='--')
-						ax22.set_xlabel('beam axis $x$ (cm)', labelpad= -10)			
-						ax22.set_ylabel('I(x,$\Delta$t) (a.u.)')
+						ax22.set_xlabel('beam axis $x$ (cm)')			
+						ax22.set_ylabel('I(x,$\Delta$t) (a.u.)',labelpad = -10)
 						ax22.set_title('Blob representatives for dashed lined time positions in left plot')
 						# ax1.set_xlim(xmin,xmax)
 						# ax1.set_ylim(ymin,ymax)
@@ -975,7 +962,7 @@ for Case in range (3):
 						XC = ax23.plot(Delt,COM, color = 'k')				# plot original data
 						XC_inter = ax23.plot(TWind_inter, XC_COM_smooth, color = 'm')	# plot interpolated data
 						XC_lgr = ax23.plot(Delt[LookWinMin_ind:LookWinMax_ind],COM_lgr, 'r--') # plot regression
-						ax23.set_xlabel('time $\Delta$t', labelpad= -10)			
+						ax23.set_xlabel('time $\Delta$t')			
 						ax23.set_ylabel('COM (cm)')
 						ax23.set_title('COM of Blob')
 						ax23.set_xlim(LookWinMin,LookWinMax)
@@ -995,7 +982,7 @@ for Case in range (3):
 						Em_Stan = ax24.plot(Delt_long,LiConAv_long[:,Refdec_ind], color = 'k')				# plot original data
 						Em_Stan_inter = ax24.plot(self_TWind_inter_long, LiConAv_self_smooth_long, color = 'm')	# plot interpolated data
 						ax24.plot([self_TWind_inter_long[left_index-1],self_TWind_inter_long[right_index]],[LiConAv_self_smooth_long[left_index-1],LiConAv_self_smooth[right_index]],linewidth=3, color = 'm')
-						ax24.set_xlabel('time $\Delta$t', labelpad= -10)			
+						ax24.set_xlabel('time $\Delta$t')			
 						ax24.set_ylabel('I(x,$\Delta$t) (a.u.)')
 						ax24.set_title('Standard blob at reference detector at %.2g cm' % (Refdec))
 						ax24.set_xlim(LookWinMin,LookWinMax)

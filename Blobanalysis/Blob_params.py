@@ -6,7 +6,7 @@
 position=100						#for certain point in time
 
 #specify reference detector position [cm]
-Refdec=2					# Take care in Block-Case
+Refdec=2.2					# Take care in Block-Case
 
 # specify beam width
 b=1.2
@@ -24,7 +24,7 @@ WinBar = 14
 
 # Specify noise level as SNR:
 
-SNR = 5
+SNR = 1.0
 
 #only used, if radial scanning case is selected:
 SetResolution = 5				# Multiples of steps in x-direction (usually multiples of 0.02) for going through all positions as Refdec-positions

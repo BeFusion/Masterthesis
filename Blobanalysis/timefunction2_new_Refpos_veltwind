@@ -73,8 +73,9 @@ saving = True				# save images
 
 
 Noise = True				# switch on additive white Gaussian noise --> Very time consuming!
+NoiseFast = False			# Enhances speed, if needed for quicker calculation
 
-Smooth = False				# smooth noisy data
+Smooth = True				# smooth noisy data
 
 # data reading  ################################################################################################################
 
@@ -86,10 +87,10 @@ if DenCase:
 if BlockCase:
 	storepref = 'Block_data_veltwind'
 
-if Noise:
-	storename = storepref+'_SNR{0:}'.format(SNR)			# change file extension as needed!
-if Smooth:
-	storename = storepref+'_SNR{0:}'.format(SNR)+'_Smooth'			# change file extension as needed!
+if Noise and Smooth:
+	storename = storepref+'_SNR{0:03d}_Smooth'.format(int(SNR*100))			# change file extension as needed!
+if Noise and not Smooth:
+	storename = storepref+'_NSR{0:04d}'.format(int(SNR*1000))			# change file extension as needed!
 
 # read in data from hdf5-file via external function
 
@@ -124,6 +125,7 @@ print('Position of Beam: {0:.2f}cm'.format(y[shift*2]))
 print('Beamwidth: {0:.2f}cm'.format(y[shift2+shift2]))	
 	
 if Noise:
+	print('The SNR is set to: {0:.2f}'.format(SNR))
 	# plot to see the impact of Noise
 	f3=plt.figure(figsize=(16,16), facecolor = 'white')
 	gs = gridspec.GridSpec(2, 1,				# ratio of grid space (2 plots per collumn, 3 per row)
@@ -135,25 +137,43 @@ if Noise:
 	ax111.plot(x,Li2p1[position,shift*2,:], 'b', label = 'original data')
 	ax111.set_ylabel('Li$_{2p}$ emission fluctuation (a.u.)')
 	ax111.set_xlabel('beam axis $x$ (cm)')
-	ax111.set_title('input beam emission spectrum at {0:.2f}ms and y={1:.2f}cm'.format(point,Refdec))
+	ax111.set_title('input beam emission spectrum at {0:.2f}ms and y={1:.2f}cm'.format(point,Refdec), y = 1.03)
 
 	if not BlockCase:
-		for x_ind in range(mn):
-			noiLi = np.random.normal(0,np.mean(Li2p1[:,shift*2,x_ind])/SNR,timestep)
-#			noine = np.random.normal(0,np.mean(ne[:,y_ind,x_ind]),timestep)
-			for t_ind in range(timestep):
-				Li2p1[t_ind,shift*2,x_ind] = Li2p1[t_ind,shift*2,x_ind]+noiLi[t_ind]
-#				ne[t_ind,y_ind,x_ind] = ne[t_ind,y_ind,x_ind]+noine[t_ind]
-		Li2p1noise=Li2p1.copy()
-
-	if BlockCase:
-		for x_ind in range(mn):
-			for y_ind in range(shift*2-shift2-2,shift*2+shift2+2):				# + 2 safty distance
-				noiLi = np.random.normal(0,np.mean(Li2p1[:,y_ind,x_ind])/SNR,timestep)
+		if NoiseFast:
+			for x_ind in range(mn):
+				noiLi = np.random.normal(0,np.mean(Li2p1[:,shift*2,x_ind])/SNR,timestep)
 	#			noine = np.random.normal(0,np.mean(ne[:,y_ind,x_ind]),timestep)
 				for t_ind in range(timestep):
-					Li2p1[t_ind,y_ind,x_ind] = Li2p1[t_ind,y_ind,x_ind]+noiLi[t_ind]
+					Li2p1[t_ind,shift*2,x_ind] = Li2p1[t_ind,shift*2,x_ind]+noiLi[t_ind]
 	#				ne[t_ind,y_ind,x_ind] = ne[t_ind,y_ind,x_ind]+noine[t_ind]
+			Li2p1noise=Li2p1.copy()
+		if not NoiseFast:
+			for x_ind in range(mn):
+				for y_ind in range(stepsize):				# + 2 safty distance
+					noiLi = np.random.normal(0,np.mean(Li2p1[:,y_ind,x_ind])/SNR,timestep)
+					for t_ind in range(timestep):
+						Li2p1[t_ind,y_ind,x_ind] = Li2p1[t_ind,y_ind,x_ind]+noiLi[t_ind]
+			Li2p1noise=Li2p1.copy()
+
+	if BlockCase:
+		if NoiseFast:
+			for x_ind in range(mn):
+				for y_ind in range(shift*2-shift2-2,shift*2+shift2+2):				# + 2 safty distance
+					noiLi = np.random.normal(0,np.mean(Li2p1[:,y_ind,x_ind])/SNR,timestep)
+		#			noine = np.random.normal(0,np.mean(ne[:,y_ind,x_ind]),timestep)
+					for t_ind in range(timestep):
+						Li2p1[t_ind,y_ind,x_ind] = Li2p1[t_ind,y_ind,x_ind]+noiLi[t_ind]
+		#				ne[t_ind,y_ind,x_ind] = ne[t_ind,y_ind,x_ind]+noine[t_ind]
+		if not NoiseFast:
+			for x_ind in range(mn):
+				for y_ind in range(stepsize):				# + 2 safty distance
+					noiLi = np.random.normal(0,np.mean(Li2p1[:,y_ind,x_ind])/SNR,timestep)
+					for t_ind in range(timestep):
+						Li2p1[t_ind,y_ind,x_ind] = Li2p1[t_ind,y_ind,x_ind]+noiLi[t_ind]
+		#				ne[t_ind,y_ind,x_ind] = ne[t_ind,y_ind,x_ind]+noine[t_ind]
+
+
 		Li2p1noise=Li2p1.copy()
 
 	# smoothing possible noisy data
@@ -162,20 +182,29 @@ if Noise:
 	Li2p1ba = Li2p1.copy()
 	Li2p1bl = Li2p1.copy()
 	smoothlen = 71
-	if not BlockCase:
-		for t_ind in range(timestep):
-			Li2p1hn[t_ind,shift*2,:] = smooth(Li2p1[t_ind,shift*2,:],window_len=smoothlen,window='hanning')
-			Li2p1hm[t_ind,shift*2,:] = smooth(Li2p1[t_ind,shift*2,:],window_len=smoothlen,window='hamming')
-			Li2p1ba[t_ind,shift*2,:] = smooth(Li2p1[t_ind,shift*2,:],window_len=smoothlen,window='bartlett')
-			Li2p1bl[t_ind,shift*2,:] = smooth(Li2p1[t_ind,shift*2,:],window_len=smoothlen,window='blackman')
-	if BlockCase:
-		for y_ind in range(shift*2-shift2-2,shift*2+shift2+2):				# + 2 safty distance
+	if NoiseFast:
+		if not BlockCase:
 			for t_ind in range(timestep):
-				Li2p1hn[t_ind,y_ind,:] = smooth(Li2p1[t_ind,shift*2,:],window_len=21,window='hanning')
-				Li2p1hm[t_ind,y_ind,:] = smooth(Li2p1[t_ind,shift*2,:],window_len=31,window='hamming')
-				Li2p1ba[t_ind,y_ind,:] = smooth(Li2p1[t_ind,shift*2,:],window_len=41,window='bartlett')
-				Li2p1bl[t_ind,y_ind,:] = smooth(Li2p1[t_ind,shift*2,:],window_len=51,window='blackman')
-	
+				Li2p1hn[t_ind,shift*2,:] = smooth(Li2p1[t_ind,shift*2,:],window_len=smoothlen,window='hanning')
+				Li2p1hm[t_ind,shift*2,:] = smooth(Li2p1[t_ind,shift*2,:],window_len=smoothlen,window='hamming')
+				Li2p1ba[t_ind,shift*2,:] = smooth(Li2p1[t_ind,shift*2,:],window_len=smoothlen,window='bartlett')
+				Li2p1bl[t_ind,shift*2,:] = smooth(Li2p1[t_ind,shift*2,:],window_len=smoothlen,window='blackman')
+		if BlockCase:
+			for y_ind in range(shift*2-shift2-2,shift*2+shift2+2):				# + 2 safty distance
+				for t_ind in range(timestep):
+					Li2p1hn[t_ind,y_ind,:] = smooth(Li2p1[t_ind,y_ind,:],window_len=smoothlen,window='hanning')
+					Li2p1hm[t_ind,y_ind,:] = smooth(Li2p1[t_ind,y_ind,:],window_len=smoothlen,window='hamming')
+					Li2p1ba[t_ind,y_ind,:] = smooth(Li2p1[t_ind,y_ind,:],window_len=smoothlen,window='bartlett')
+					Li2p1bl[t_ind,y_ind,:] = smooth(Li2p1[t_ind,y_ind,:],window_len=smoothlen,window='blackman')
+	if not NoiseFast:
+		for y_ind in range(stepsize):				# + 2 safty distance
+			for t_ind in range(timestep):
+				Li2p1hn[t_ind,y_ind,:] = smooth(Li2p1[t_ind,y_ind,:],window_len=smoothlen,window='hanning')
+				Li2p1hm[t_ind,y_ind,:] = smooth(Li2p1[t_ind,y_ind,:],window_len=smoothlen,window='hamming')
+				Li2p1ba[t_ind,y_ind,:] = smooth(Li2p1[t_ind,y_ind,:],window_len=smoothlen,window='bartlett')
+				Li2p1bl[t_ind,y_ind,:] = smooth(Li2p1[t_ind,y_ind,:],window_len=smoothlen,window='blackman')
+
+
 #	use fitting data only if smoothing is wanted:
 	if Smooth:
 		Li2p1 = Li2p1hn.copy()
@@ -187,18 +216,18 @@ if Noise:
 	ax111.legend(loc='best',fancybox = True, numpoints = 1)
 
 	ax222.plot(x,Li2p1hn[position,shift*2,:],'r', label = 'Hanning')
-	ax222.plot(x,Li2p1noise[position,shift*2,:],'b', label = 'Noisy data with SNR={0:d}'.format(SNR))
+	ax222.plot(x,Li2p1noise[position,shift*2,:],'b', label = 'Noisy data with SNR={0:.2f}'.format(SNR))
 	ax222.set_ylabel('Li$_{2p}$ emission fluctuation (a.u.)')
 	ax222.set_xlabel('beam axis $x$ (cm)')
-	ax222.set_title('beam emission spectrum with SNR={0:d} at {1:.2f}ms and y={2:.2f}cm'.format(SNR, point,Refdec))
+	ax222.set_title('beam emission spectrum with SNR={0:.2f} at {1:.2f}ms and y={2:.2f}cm'.format(SNR, point,Refdec), y = 1.03)
 	ax222.legend(loc='best',fancybox = True, numpoints = 1)
+	plt.tight_layout()
 	#plt.show()
 	if saving: 
-		f3.savefig('{0:03d}Noise_Fitting_SNR{1:d}'.format(Measurement,SNR))
+		f3.savefig('{0:03d}Noise_Fitting_SNR{1:d}'.format(Measurement,int(SNR*100)))
 
 # use the block-emission data for the block case:
 if BlockCase:
-
 	x_ori = x
 #	Li2p1 = block_func(Li2p1,timestep,mn,b,avy,shift,shift2)			# if original block-function should be used
 	Li2p1_beam, Li2p1, x, blur = dect_func(Li2p1,timestep,mn,b,avy,shift,shift2,x)	# if detector reduced block function should be used
@@ -315,7 +344,7 @@ if not BlockCase:
 ax1.axvline(bcenter,color='w', linestyle='-')
 ax1.set_xlabel('axis $y$ (cm)', labelpad= -10)			# switched of, since axis in row below
 ax1.set_ylabel('beam axis $x$ (cm)')
-ax1.set_title('input density $n_e$ (cm$^{-3}$) at %.3g ms' % (point))
+ax1.set_title('input density $n_e$ (cm$^{-3}$) at %.3g ms' % (point), y = 1.03)
 #ax1.set_xlim(xmin,xmax)
 #ax1.set_ylim(ymin,ymax)
 div1 =  make_axes_locatable(ax1)
@@ -334,7 +363,7 @@ if not DenCase:
 	ax2.axvline(bcenter,color='w', linestyle='-')
 	ax2.set_ylabel('beam axis $x$ (cm)')
 	ax2.set_xlabel('axis $y$ (cm)', labelpad=-10)
-	ax2.set_title('beam emission spectrum at %.3g ms'% (point))
+	ax2.set_title('beam emission spectrum at %.3g ms'% (point), y = 1.03)
 	#ax2.set_xlim(xmin,xmax)
 	#ax2.set_ylim(ymin,ymax)
 	div2 =  make_axes_locatable(ax2)
@@ -348,7 +377,7 @@ if DenCase:
 	ax2.axvline(bcenter,color='w', linestyle='-')
 	ax2.set_ylabel('beam axis $x$ (cm)')
 	ax2.set_xlabel('axis $y$ (cm)', labelpad=-10)
-	ax2.set_title('Density fluctuation at %.3g ms'% (point))
+	ax2.set_title('Density fluctuation at %.3g ms'% (point), y = 1.03)
 	#ax2.set_xlim(xmin,xmax)
 	#ax2.set_ylim(ymin,ymax)
 	div2 =  make_axes_locatable(ax2)
@@ -369,9 +398,9 @@ ax3.axvline(point,color='w', linestyle='-')
 ax3.set_ylabel('beam axis $x$ (cm)')			
 ax3.set_xlabel('time $t$ (ms)', labelpad=-10)
 if not DenCase:
-	ax3.set_title('timeseries of emission fluctuation for beam position %.3g cm' % (bcenter))
+	ax3.set_title('timeseries of emission fluctuation for beam position %.3g cm' % (bcenter), y = 1.03)
 if DenCase:
-	ax3.set_title('timeseries of density fluctuation for beam position %.3g cm' % (bcenter))
+	ax3.set_title('timeseries of density fluctuation for beam position %.3g cm' % (bcenter), y = 1.03)
 ax3.set_xlim(t_start,t_end)
 #ax3.set_ylim(ymin,ymax)
 div3 =  make_axes_locatable(ax3)
@@ -454,7 +483,7 @@ if not DenCase:
 if DenCase:
 	ax4.set_ylabel('density $n_e$ (cm$^{-3}$)')
 ax4.set_xlabel('time $t$ (ms)',labelpad=-10)
-ax4.set_title('Series for Detector Position %.2g cm' % (Refdec))
+ax4.set_title('Series for Detector Position %.2g cm' % (Refdec), y = 1.03)
 ax4.set_xlim(t_start,t_end)
 #ax4.set_ylim(ymin,ymax)
 div4 =  make_axes_locatable(ax4)
@@ -777,9 +806,9 @@ if (Standardblob==True and BlobCount>0):				# only occurs if switch is on and if
 	if not BlockCase:
 		ax21.plot([Delt[NullPos_ind],Delt[NullPos_ind]],[x[up_index],x[low_index]], linewidth=3, color='w')	# FWHM-plot
 	ax21.plot([self_TWind_inter_long[left_index],self_TWind_inter_long[right_index]],[x[Refdec_ind],x[Refdec_ind]],linewidth=3, color = 'w')
-	ax21.set_xlabel('time $\Delta$t', labelpad= -10)			
+	ax21.set_xlabel('time $\Delta$t')			
 	ax21.set_ylabel('beam axis $x$ (cm)')
-	ax21.set_title('Spectrum for standard blob')
+	ax21.set_title('Spectrum for standard blob', y = 1.03)
 	#time points for representatives blobs are drawn into plot
 	ax21.axvline(Delt[a_an],color='r', linestyle='--')
 	ax21.axvline(Delt[b_an],color='g', linestyle='--')
@@ -788,7 +817,7 @@ if (Standardblob==True and BlobCount>0):				# only occurs if switch is on and if
 	ax21.set_xlim(LookWinMin,LookWinMax)
 	# ax1.set_ylim(ymin,ymax)
 	div21 =  make_axes_locatable(ax21)
-	cax21=div21.append_axes("right",size="5%",pad=0.05)
+	cax21=div21.append_axes("right",size="5%")
 	chbar_I = plt.colorbar(I2,cax=cax21)
 	chbar_I.set_label('I(x,$\Delta$t) (a.u.)')
 
@@ -814,7 +843,7 @@ if (Standardblob==True and BlobCount>0):				# only occurs if switch is on and if
 	ax22.axvline(COM[c_an],color='b', linestyle='--')
 	ax22.set_xlabel('beam axis $x$ (cm)', labelpad= -10)			
 	ax22.set_ylabel('I(x,$\Delta$t) (a.u.)')
-	ax22.set_title('Blob representatives for dashed lined time positions in left plot')
+	ax22.set_title('Blob representatives for dashed lined time positions in left plot', y = 1.03)
 	# ax1.set_xlim(xmin,xmax)
 	# ax1.set_ylim(ymin,ymax)
 	# div21 =  make_axes_locatable(ax21)
@@ -884,7 +913,7 @@ if (Standardblob==True and BlobCount>0):				# only occurs if switch is on and if
 	XC_lgr = ax23.plot(Delt[LookWinMin_ind:LookWinMax_ind],COM_lgr, 'r--') # plot regression
 	ax23.set_xlabel('time $\Delta$t', labelpad= -10)			
 	ax23.set_ylabel('COM (cm)')
-	ax23.set_title('COM of Blob')
+	ax23.set_title('COM of Blob', y = 1.03)
 	ax23.set_xlim(LookWinMin,LookWinMax)
 	ax23.set_ylim(x[-1],x[0])
 	div23 =  make_axes_locatable(ax23)
@@ -905,7 +934,7 @@ if (Standardblob==True and BlobCount>0):				# only occurs if switch is on and if
 	ax24.plot([self_TWind_inter_long[left_index-1],self_TWind_inter_long[right_index]],[LiConAv_self_smooth_long[left_index-1],LiConAv_self_smooth_long[right_index]],linewidth=3, color = 'm')
 	ax24.set_xlabel('time $\Delta$t', labelpad= -10)			
 	ax24.set_ylabel('I(x,$\Delta$t) (a.u.)')
-	ax24.set_title('Standard blob at reference detector at %.2g cm' % (Refdec))
+	ax24.set_title('Standard blob at reference detector at %.2g cm' % (Refdec), y = 1.03)
 	ax24.set_xlim(LookWinMin_long,LookWinMax_long)
 	# ax24.set_ylim(x[-1],x[0])
 	# div24 =  make_axes_locatable(ax23)

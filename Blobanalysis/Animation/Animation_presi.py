@@ -32,7 +32,7 @@ time, x, y, ne, LiTemp, Li2p1, B0, Lp, q95, Te0, Ti0, ne0, omegaCi, rhoS, endtim
 
 # selected times, which are supposed to be investigated [us]
 t_start=0.2
-t_end = 2
+t_end = 1.5
 print('time to be investigated betweem %.3gms and %.3gms:' % (t_start, t_end))
 
 # calculate time in [us] for snapshots:
@@ -53,43 +53,27 @@ print('Position of Beam: {0:.2f}cm'.format(y[shift*2]))
 print('Beamwidth: {0:.2f}cm'.format(y[shift2+shift2]))	
 
 if Noise:
-	if not BlockCase:
-		for x_ind in range(mn):
-			noiLi = np.random.normal(0,np.mean(Li2p1[:,shift*2,x_ind])/SNR,timestep)
-#			noine = np.random.normal(0,np.mean(ne[:,y_ind,x_ind]),timestep)
+	for x_ind in range(mn):
+		for y_ind in range(stepsize):				# + 2 safty distance
+			noiLi = np.random.normal(0,np.mean(Li2p1[:,y_ind,x_ind])/SNR,timestep)
 			for t_ind in range(timestep):
-				Li2p1[t_ind,shift*2,x_ind] = Li2p1[t_ind,shift*2,x_ind]+noiLi[t_ind]
-#				ne[t_ind,y_ind,x_ind] = ne[t_ind,y_ind,x_ind]+noine[t_ind]
-	if BlockCase:
-		for x_ind in range(mn):
-			for y_ind in range(shift*2-shift2-2,shift*2+shift2+2):				# + 2 safty distance
-				noiLi = np.random.normal(0,np.mean(Li2p1[:,y_ind,x_ind])/SNR,timestep)
-	#			noine = np.random.normal(0,np.mean(ne[:,y_ind,x_ind]),timestep)
-				for t_ind in range(timestep):
-					Li2p1[t_ind,y_ind,x_ind] = Li2p1[t_ind,y_ind,x_ind]+noiLi[t_ind]
-	#				ne[t_ind,y_ind,x_ind] = ne[t_ind,y_ind,x_ind]+noine[t_ind]
-		Li2p1noise=Li2p1.copy()
+				Li2p1[t_ind,y_ind,x_ind] = Li2p1[t_ind,y_ind,x_ind]+noiLi[t_ind]
+	Li2p1noise=Li2p1.copy()
 
-	# smoothing possible noisy data
+	# smoothing noisy data
 	if Smooth:
 		Li2p1hn = Li2p1.copy()
-		Li2p1hm = Li2p1.copy()
-		Li2p1ba = Li2p1.copy()
-		Li2p1bl = Li2p1.copy()
+	#	Li2p1hm = Li2p1.copy()
+	#	Li2p1ba = Li2p1.copy()
+	#	Li2p1bl = Li2p1.copy()
 		smoothlen = 71
-		if not BlockCase:
-			for t_ind in range(timestep):
-				Li2p1[t_ind,shift*2,:] = smooth(Li2p1[t_ind,shift*2,:],window_len=smoothlen,window='hanning')
-				#Li2p1hm[t_ind,shift*2,:] = smooth(Li2p1[t_ind,shift*2,:],window_len=smoothlen,window='hamming')
-				#Li2p1ba[t_ind,shift*2,:] = smooth(Li2p1[t_ind,shift*2,:],window_len=smoothlen,window='bartlett')
-				#Li2p1bl[t_ind,shift*2,:] = smooth(Li2p1[t_ind,shift*2,:],window_len=smoothlen,window='blackman')
-		if BlockCase:
-			for y_ind in range(shift*2-shift2-2,shift*2+shift2+2):				# + 2 safty distance
-				for t_ind in range(timestep):
-					Li2p1[t_ind,y_ind,:] = smooth(Li2p1[t_ind,shift*2,:],window_len=21,window='hanning')
-					#Li2p1hm[t_ind,y_ind,:] = smooth(Li2p1[t_ind,shift*2,:],window_len=31,window='hamming')
-					#Li2p1ba[t_ind,y_ind,:] = smooth(Li2p1[t_ind,shift*2,:],window_len=41,window='bartlett')
-					#Li2p1bl[t_ind,y_ind,:] = smooth(Li2p1[t_ind,shift*2,:],window_len=51,window='blackman')
+		for t_ind in range(timestep):
+			for y_ind in range(stepsize):
+				Li2p1hn[t_ind,y_ind,:] = smooth(Li2p1[t_ind,y_ind,:],window_len=smoothlen,window='hanning')
+			#	Li2p1hm[t_ind,shift*2,:] = smooth(Li2p1[t_ind,shift*2,:],window_len=smoothlen,window='hamming')
+			#	Li2p1ba[t_ind,shift*2,:] = smooth(Li2p1[t_ind,shift*2,:],window_len=smoothlen,window='bartlett')
+			#	Li2p1bl[t_ind,shift*2,:] = smooth(Li2p1[t_ind,shift*2,:],window_len=smoothlen,window='blackman')
+		Li2p1 = Li2p1hn.copy()
 
 # use the block-emission data for the block case:
 
@@ -153,45 +137,54 @@ files = []
 run =np.linspace(t_start_ind,t_end_ind, t_end_ind-t_start_ind)
 print(t_start_ind, time[t_start_ind], t_end_ind, time[t_end_ind], t_end_ind-t_start_ind, len(run))
 for run in range(len(run)):
-	f1=plt.figure(figsize=(4,4), facecolor = 'white', dpi= 300)
-#	font = {'family' :'normal', 'weight' : 'regular', 'size' : 10}
-#	matplotlib.rc('font', **font)
-	gs = gridspec.GridSpec(3, 1, width_ratios=[1], height_ratios=[1,1,1,1])
+	f1=plt.figure(figsize=(8,8), facecolor = 'white', dpi= 300)
+	font = {'family' :'Helvetica', 'weight' : 'regular', 'size' : 12}
+	matplotlib.rc('font', **font)
+	gs = gridspec.GridSpec(3, 1, width_ratios=[1], height_ratios=[1,1,1])
+	gs.update(hspace=0.55)
 	# create axes with the ratios specified in gs above. ax5, ax6 are the axes for the colorbars:
 	ax1 = plt.subplot(gs[0])
 	ax2 = plt.subplot(gs[1])
 	ax3 = plt.subplot(gs[2])
 #	ax4 = plt.subplot(gs[3])
 
-	f1.suptitle("time {0:.2f}ms".format(time[t_start_ind+run]))	# set time step title
+	xmax = 5
+	xmin = min(x_ori)
+
+	pady = 0
+#	f1.suptitle("time {0:.2f}ms".format(time[t_start_ind+run]),x=0.8,y=1.00)	# set time step title
 #	pdb.set_trace()
 	ax1pl = ax1.contourf(Y,X,ne[run,:,:],300)
-	ax1.set_xlabel('axis $y$ (cm)')			# switched of, since axis in row below
-	ax1.set_ylabel('beam axis $x$ (cm)')
-	ax1.set_title('Input Density $n_e$ (cm$^{-3}$)')
+	ax1.set_xlabel('axis $y$ (cm)', labelpad = pady)			# switched of, since axis in row below
+	ax1.set_ylim(xmin,xmax)
+	ax1.set_ylabel('beam axis $x$ (cm)', labelpad = pady)
+	ax1.set_title(r'Input Density $n_e$ (1/cm$^3$)                        time {0:.2f}ms'.format(time[t_start_ind+run]), y = 1)
 
 
 	ax2pl = ax2.contourf(Y,X,Li2p1[run,:,:],300)
-	ax2.set_ylabel('beam axis $x$ (cm)')
-	ax2.set_xlabel('axis $y$ (cm)')
-	ax2.set_title('High Resolution Beam Emission Spectrum')
+	ax2.set_ylabel('beam axis $x$ (cm)', labelpad = pady)
+	ax2.set_xlabel('axis $y$ (cm)', labelpad = pady)
+	ax2.set_ylim(xmin,xmax)
+	ax2.set_title('High Resolution Beam Emission Spectrum', y = 1)
 
 
 	ax3pl = contourf(Y,X,Li2p1_beam[run,:,:],300)
-	ax3.set_ylabel('beam axis $x$ (cm)')
-	ax3.set_xlabel('axis $y$ (cm)')
-	ax3.set_title('Block Beam Emission Spectrum')
+	ax3.set_ylabel('beam axis $x$ (cm)', labelpad = pady)
+	ax3.set_xlabel('axis $y$ (cm)', labelpad = pady)
+	ax3.set_ylim(xmin,xmax)
+	ax3.set_title('Block Beam Emission Spectrum', y = 1)
 
 	fname = '_tmp%04d.png'%run
-	savefig(fname)
 	files.append(fname)
-	plt.tight_layout()
-	plt.close(f1)
+#	plt.tight_layout()
+#	plt.show
+#	pdb.set_trace()
+	savefig(fname)
 #	return ax1pl, ax2pl, ax3pl				# RGB image of the figure
 
 
 #high quality:
-os.system("mencoder 'mf://_tmp*.png' -mf type=png:fps=2 -ovc lavc -lavcopts vcodec=wmv2 -oac copy -o " + filename + ".mpg")
+os.system("mencoder 'mf://_tmp*.png' -mf type=png:fps=2 -ovc lavc -lavcopts vcodec=mpeg4:mbd=2:mv0:trell:v4mv:cbp:last_pred=3:predia=2:dia=2:vmax_b_frames=2:vb_strategy=1:precmp=2:cmp=2:subcmp=2:preme=2:qns=2 -oac copy -o " + filename + ".mpeg")
 
 # cleanup
 for fname in files: os.remove(fname)
