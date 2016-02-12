@@ -170,6 +170,7 @@ print('shape of f_B_Mat', np.shape(f_B3m))
 
 # for Em-Case #####################################################################################################################
 
+#pdb.set_trace()
 f_B = [None]*lenx
 f_Berr = [None]*lenx
 for f in range (lenx):
@@ -447,6 +448,7 @@ ax8.set_xlabel('beam axis $x$ (cm)', labelpad= 0)			# switched of, since axis in
 ax8.set_ylabel(r'relative emission $\delta I/I$ or $\delta n/n$')
 ax8.get_yaxis().set_label_coords(-0.11,0.5)
 ax8.set_title(r'Blob amplitude')
+
 
 leg = ax8.legend(loc='upper center', bbox_to_anchor = (-0.1,-0.05),fancybox = True, numpoints = 1)
 

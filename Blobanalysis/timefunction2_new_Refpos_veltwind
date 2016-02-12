@@ -90,7 +90,7 @@ if BlockCase:
 if Noise and Smooth:
 	storename = storepref+'_SNR{0:03d}_Smooth'.format(int(SNR*100))			# change file extension as needed!
 if Noise and not Smooth:
-	storename = storepref+'_NSR{0:04d}'.format(int(SNR*1000))			# change file extension as needed!
+	storename = storepref+'_SNR{0:03d}'.format(int(SNR*1000))			# change file extension as needed!
 
 # read in data from hdf5-file via external function
 

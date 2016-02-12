@@ -43,8 +43,8 @@ filename = '_veltwind_SNR'				# specify fileextension to be read in and to be st
 Measurement = 4				# specify number of measurement without leading zeros, which is the prefix of the file in form (will be extended later to e.g. 004) 
 
 
-EmCase=False
-BlockCase = True
+EmCase		= False
+BlockCase	= True
 
 if EmCase:
 	files=['{0:03d}Emresults{1:}010_Smooth.txt'.format(Measurement,filename),'{0:03d}Emresults{1:}020_Smooth.txt'.format(Measurement,filename),'{0:03d}Emresults{1:}030_Smooth.txt'.format(Measurement,filename),'{0:03d}Emresults{1:}035_Smooth.txt'.format(Measurement,filename),'{0:03d}Emresults{1:}050_Smooth.txt'.format(Measurement,filename), '{0:03d}Emresults{1:}100_Smooth.txt'.format(Measurement,filename), '{0:03d}Emresults_veltwind.txt'.format(Measurement)]
@@ -197,52 +197,45 @@ for i in range(numfil):
 		vdmax = np.array(vdmax)
 		vdmax = np.reshape(vdmax,(numfil,lenx))
 		vdmaxerr = [None]*lenx*numfil
-		vdmaxerr = np.array(vdmax)
-		vdmaxerr = np.reshape(vdmax,(numfil,lenx))
+		vdmaxerr = np.array(vdmaxerr)
+		vdmaxerr = np.reshape(vdmaxerr,(numfil,lenx))
 
 		vimax = [None]*lenx*numfil
 		vimax = np.array(vimax)
 		vimax = np.reshape(vimax,(numfil,lenx))
 		vimaxerr = [None]*lenx*numfil
-		vimaxerr = np.array(vimax)
-		vimaxerr = np.reshape(vimax,(numfil,lenx))
+		vimaxerr = np.array(vimaxerr)
+		vimaxerr = np.reshape(vimaxerr,(numfil,lenx))
 
 		Relem = [None]*lenx*numfil
 		Relem = np.array(Relem)
 		Relem = np.reshape(Relem,(numfil,lenx))
 		Relemerr = [None]*lenx*numfil
-		Relemerr = np.array(Relem)
-		Relemerr = np.reshape(Relem,(numfil,lenx))
+		Relemerr = np.array(Relemerr)
+		Relemerr = np.reshape(Relemerr,(numfil,lenx))
 
 	for f in range (lenx):
 		f_B[i,f] = stats.nanmean(f_Bm[:,f])
 		f_Berr[i,f] = stats.nanstd(f_Bm[:,f])
 
-
-	for f in range (lenx):
 		rho_x[i,f] = stats.nanmean(rho_xm[:,f])
 		rho_xerr[i,f] = stats.nanstd(rho_xm[:,f])
-			
-	for f in range (lenx):
+
 		tau_B[i,f] = stats.nanmean(tau_Bm[:,f])
 		tau_Berr[i,f] = stats.nanstd(tau_Bm[:,f])
 
-	for f in range (lenx):
 		v_r[i,f] = stats.nanmean(v_rm[:,f])
 		v_rerr[i,f] = stats.nanstd(v_rm[:,f])
 
-	for f in range (lenx):
 		vdmax[i,f] = stats.nanmean(vdmaxm[:,f])
 		vdmaxerr[i,f] = stats.nanstd(vdmaxm[:,f])
 
-	for f in range (lenx):
 		vimax[i,f] = stats.nanmean(vimaxm[:,f])
 		vimaxerr[i,f] = stats.nanstd(vimaxm[:,f])
 
-	for f in range (lenx):
 		Relem[i,f] = stats.nanmean(Relemm[:,f])
 		Relemerr[i,f] = stats.nanstd(Relemm[:,f])
-
+	
 # for Den-Case #####################################################################################################################
 f_B2 = [None]*lenx2
 f_B2err = [None]*lenx2
@@ -392,7 +385,7 @@ ax7.axvline(0,color='k', linestyle='-.')
 #ax7.set_xlabel('beam axis $x$ (cm)', labelpad= 0)			# switched of, since axis in row below
 ax7.set_ylabel(r'Maximum velocities $v_{imax}$ (m/s)')
 ax7.get_yaxis().set_label_coords(-0.11,0.5)
-ax7.set_ylim(0,6000)
+ax7.set_ylim(0,8000)
 ax7.set_title(r'Maximum velocities for interpolated data')
 
 
@@ -403,6 +396,7 @@ for i in range(numfil):
 ax8.axvline(0,color='k', linestyle='-.')
 ax8.set_xlabel('beam axis $x$ (cm)', labelpad= 0)			# switched of, since axis in row below
 ax8.set_ylabel(r'relative emission $\delta I/I$ or $\delta n/n$')
+#ax8.set_ylim(0,7)
 ax8.get_yaxis().set_label_coords(-0.11,0.5)
 ax8.set_title(r'Blob amplitude')
 
