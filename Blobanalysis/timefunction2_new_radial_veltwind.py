@@ -16,6 +16,7 @@ from scipy import ndimage			# calculate com
 from scipy.interpolate import spline		# for interpolate COM position for good speed calculation of blob
 from scipy import stats, polyfit		# for linear interpolation data
 from scipy_cookbook_smooth import smooth	# for interpolating noisy data
+from scipy import signal			# for smoothing time signal
 from hdf5_read import Li_read_hdf5		# read hdf5 file in
 from block_func import block_beam_func		# for calculating the block data
 from write_nan import write_nan			# for writing in bad cases
@@ -64,7 +65,7 @@ storepref = '_veltwind'				# specify fileextension to be read in and to be store
 
 # Case Loop
 Counterbad = 0				# Number of bad events
-for Case in range (2,3):
+for Case in range (3):
 	if Case == 0:
 		EmCase = True				# infinite emission case --> actually always true, since every different setting during analysis is made by if-statements with the other two cases --> can stay false
 		DenCase = False				# density analysis case
@@ -82,9 +83,13 @@ for Case in range (2,3):
 	if (EmCase and DenCase or EmCase and BlockCase or DenCase and BlockCase):		#if you do something wrong here ;)
 		sys.exit('Accidentally set two cases for evaluation!')
 
-	Noise = True				# switch on additive white Gaussian noise --> Very time consuming!
+	Noise = False				# switch on additive white Gaussian noise --> Very time consuming!
 
-	Smooth = True				# smoothing noisy data afterwards
+	Smooth = False				# smoothing noisy data afterwards
+
+	NoiseTime = True		# puts  noise on time signal
+	
+	SmoothTime = True		# smoothes time-signal
 
 	yvariation = True		# Calculate more values for y-variation
 	
@@ -101,6 +106,11 @@ for Case in range (2,3):
 		storename = storepref+'_SNR{0:03d}'.format(int(SNR*100))			# change file extension as needed!
 	if Smooth:
 		storename = storepref+'_SNR{0:03d}'.format(int(SNR*100))+'_Smooth'			# change file extension as needed!
+	if NoiseTime:
+		storename = storepref+'_TIME_SNR{0:03d}'.format(int(SNR*100))			# change file extension as needed!
+	if SmoothTime:
+		storename = storepref+'_TIME_SNR{0:03d}'.format(int(SNR*100))+'_Smooth'			# change file extension as needed!
+
 
 	if Radial:	
 
@@ -220,6 +230,46 @@ for Case in range (2,3):
 			Li2p1 = Li2p1hn.copy()
 			Li2p1cop = Li2p1hn.copy()	# used for passing to detector function
 
+	if NoiseTime and not BlockCase:
+		print('The SNR is set to: {0:.2f}'.format(SNR))
+		''' if only the quick smoothing analysis of the reference detector position is required 
+		noiLi = np.random.normal(0,np.mean(Li2p1[:,shift*2,Refdec_ind])/SNR,timestep)
+		for t_ind in range(int(t_start/avt),int(t_end/avt)):
+			Li2p1[t_ind,shift*2,Refdec_ind] = Li2p1[t_ind,shift2,Refdec_ind]+noiLi[t_ind]
+		Li2p1noise=Li2p1.copy()
+		'''
+		Li2p1noise=Li2p1.copy()
+		for x_ind in range(mn):
+			for y_ind in range(stepsize):			
+				noiLi = np.random.normal(0,np.mean(Li2p1[:,y_ind,x_ind])/SNR,timestep)
+				for t_ind in range(int(t_start/avt),int(t_end/avt)):
+							Li2p1noise[t_ind,y_ind,x_ind] = Li2p1[t_ind,y_ind,x_ind]+noiLi[t_ind]
+
+		# smoothing possible noisy data
+		
+		def butter_lowpass(cutoff,fs,order=5):
+			nyq = 0.5*fs
+			normal_cutoff = cutoff/nyq
+			b, a = signal.butter(order, normal_cutoff, btype = 'low', analog = False)
+			return b, a
+		def butter_lowpass_filtfilt(data, cutoff, fs, order=5):
+			b, a = butter_lowpass(cutoff, fs, order = order)
+			y = signal.filtfilt(b, a, data)
+			return y
+		cutoff = 40000
+		fs = 660000
+
+		Li2p1hn = Li2p1.copy()
+		for x_ind in range(mn):
+			for y_ind in range(stepsize):		
+				Li2p1hn[int(t_start/avt):int(t_end/avt),y_ind,x_ind] = butter_lowpass_filtfilt(Li2p1noise[int(t_start/avt):int(t_end/avt),y_ind,x_ind],cutoff,fs)
+				
+		# only use the new noise and smoothed data if selected
+		Li2p1=Li2p1noise.copy()
+		if SmoothTime:
+			Li2p1=Li2p1hn.copy()
+	
+
 	#define center of beam and shift for correct beam position:
 	if yvariation:
 		beamrange = np.arange (y_starting,y_ending,yResolution)
@@ -242,6 +292,38 @@ for Case in range (2,3):
 			mn = len(x)
 			shift_Block = shift
 			shift = 0									# we are in the 1D-Case, so every time the entry at shift is called in matrix, this is set to the zero entry
+
+			if NoiseTime and BlockCase:
+				
+				Li2p1noise=Li2p1.copy()
+				for x_ind in range(len(x)):
+					noiLi = np.random.normal(0,np.mean(Li2p1[:,0,x_ind])/SNR,timestep)
+					for t_ind in range(int(t_start/avt),int(t_end/avt)):
+						Li2p1noise[t_ind,0,x_ind] = Li2p1[t_ind,0,x_ind]+noiLi[t_ind]
+
+				# smoothing possible noisy data
+				
+				def butter_lowpass(cutoff,fs,order=5):
+					nyq = 0.5*fs
+					normal_cutoff = cutoff/nyq
+					b, a = signal.butter(order, normal_cutoff, btype = 'low', analog = False)
+					return b, a
+				def butter_lowpass_filtfilt(data, cutoff, fs, order=5):
+					b, a = butter_lowpass(cutoff, fs, order = order)
+					y = signal.filtfilt(b, a, data)
+					return y
+				cutoff = 40000
+				fs = 660000
+
+				Li2p1hn = Li2p1.copy()
+				for x_ind in range(len(x)):		
+					Li2p1hn[int(t_start/avt):int(t_end/avt),0,x_ind] = butter_lowpass_filtfilt(Li2p1noise[int(t_start/avt):int(t_end/avt),0,x_ind],cutoff,fs)
+						
+				# only use the new noise and smoothed data if selected
+				Li2p1=Li2p1noise.copy()
+				if SmoothTime:
+					Li2p1=Li2p1hn.copy()
+
 
 
 		#Create zero-mean fluctuation matrix
@@ -423,7 +505,7 @@ for Case in range (2,3):
 					if DenCase:
 						cbar_timeemission.set_label('density $n_e$ (cm$^{-3}$)')
 
-
+				
 
 				# Calculations for conditional average ###########################################################################################
 

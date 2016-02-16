@@ -12,6 +12,7 @@ from pylab import plot
 import matplotlib.gridspec as gridspec		# define layout of grid
 from mpl_toolkits.axes_grid1 import make_axes_locatable # for colorbars
 from scipy import ndimage			# calculate com
+from scipy import signal			# for smoothing time signal
 from scipy.interpolate import spline		# for interpolate COM position for good speed calculation of blob
 from scipy import stats, polyfit		# for linear interpolation data
 from scipy_cookbook_smooth import smooth	# for interpolating data
@@ -72,10 +73,12 @@ NewData = False				# Switch to write output
 saving = True				# save images
 
 
-Noise = True				# switch on additive white Gaussian noise --> Very time consuming!
+Noise = False			# switch on additive white Gaussian noise --> Very time consuming!
 NoiseFast = False			# Enhances speed, if needed for quicker calculation
+Smooth = False			# smooth noisy data
 
-Smooth = True				# smooth noisy data
+NoiseTime = True
+SmoothTime = True
 
 # data reading  ################################################################################################################
 
@@ -87,10 +90,10 @@ if DenCase:
 if BlockCase:
 	storepref = 'Block_data_veltwind'
 
-if Noise and Smooth:
-	storename = storepref+'_SNR{0:03d}_Smooth'.format(int(SNR*100))			# change file extension as needed!
-if Noise and not Smooth:
-	storename = storepref+'_SNR{0:03d}'.format(int(SNR*1000))			# change file extension as needed!
+if NoiseTime and SmoothTime:
+	storename = storepref+'_TIME_SNR{0:03d}_Smooth'.format(int(SNR*100))			# change file extension as needed!
+if NoiseTime and not SmoothTime:
+	storename = storepref+'_TIME_SNR{0:03d}'.format(int(SNR*1000))			# change file extension as needed!
 
 # read in data from hdf5-file via external function
 
@@ -226,6 +229,8 @@ if Noise:
 	if saving: 
 		f3.savefig('{0:03d}Noise_Fitting_SNR{1:d}'.format(Measurement,int(SNR*100)))
 
+
+
 # use the block-emission data for the block case:
 if BlockCase:
 	x_ori = x
@@ -294,6 +299,75 @@ if not BlockCase:					# otherwise this position is determined later
 	print('Position along beam-axis for Reference Detector: {0:.2f}cm'.format(x[Refdec_ind])) # check, if Reference detector is at correct position
 	if (Refdec>x[0]):				# exit, if error with reference detector position occurs
 		sys.exit('Reference Detector outside of observable region')
+
+# noise on time signal ans smoothing
+
+if NoiseTime:
+	print('The SNR is set to: {0:.2f}'.format(SNR))
+	# plot to see the impact of Noise
+	f3=plt.figure(figsize=(16,16), facecolor = 'white')
+	gs = gridspec.GridSpec(2, 1,				# ratio of grid space (2 plots per collumn, 3 per row)
+			width_ratios=[1],		# width ratios of the 3 plots per row
+			height_ratios=[1,1]		# height ratios of the 2 polots per collumn
+			)
+	ax111 = plt.subplot(gs[0])
+	ax222 = plt.subplot(gs[1])
+
+	
+	ax111.plot(time[int(t_start/avt):int(t_end/avt)],Li2p1[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind],'b', label = 'original data')
+	ax111.set_ylabel('Li$_{2p}$ emission (a.u.)')
+	ax111.set_xlabel('time $t$ (ms)')
+	ax111.set_title('Original and Smoothed Emission Time Series for Reference Detector at {0:.2f}cm'.format(Refdec), y = 1.03)
+#	ax111.set_xlim(1,2)
+	
+	''' if only the quick smoothing analysis of the reference detector position is required 
+	noiLi = np.random.normal(0,np.mean(Li2p1[:,shift*2,Refdec_ind])/SNR,timestep)
+	for t_ind in range(int(t_start/avt),int(t_end/avt)):
+		Li2p1[t_ind,shift*2,Refdec_ind] = Li2p1[t_ind,shift2,Refdec_ind]+noiLi[t_ind]
+	Li2p1noise=Li2p1.copy()
+	'''
+	Li2p1noise=Li2p1.copy()
+	for x_ind in range(mn):
+		for y_ind in range(stepsize):			
+			noiLi = np.random.normal(0,np.mean(Li2p1[:,y_ind,x_ind])/SNR,timestep)
+			for t_ind in range(int(t_start/avt),int(t_end/avt)):
+						Li2p1noise[t_ind,y_ind,x_ind] = Li2p1[t_ind,y_ind,x_ind]+noiLi[t_ind]
+
+	# smoothing possible noisy data
+	
+	def butter_lowpass(cutoff,fs,order=5):
+		nyq = 0.5*fs
+		normal_cutoff = cutoff/nyq
+		b, a = signal.butter(order, normal_cutoff, btype = 'low', analog = False)
+		return b, a
+	def butter_lowpass_filtfilt(data, cutoff, fs, order=5):
+		b, a = butter_lowpass(cutoff, fs, order = order)
+		y = signal.filtfilt(b, a, data)
+		return y
+	cutoff = 40000
+	fs = 660000
+
+	Li2p1hn = Li2p1.copy()
+	for x_ind in range(mn):
+		for y_ind in range(stepsize):		
+			Li2p1hn[int(t_start/avt):int(t_end/avt),y_ind,x_ind] = butter_lowpass_filtfilt(Li2p1noise[int(t_start/avt):int(t_end/avt),y_ind,x_ind],cutoff,fs)
+		
+	ax111.plot(time[int(t_start/avt):int(t_end/avt)],Li21phn[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind],'r', label='Butterworth (5th order)')
+	ax111.legend(loc='best',fancybox = True,numpoints=1)
+	ax222.plot(time[int(t_start/avt):int(t_end/avt)],Li2p1hn[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind],'r', label = 'Butterworth (5th order)')
+	ax222.plot(time[int(t_start/avt):int(t_end/avt)],Li2p1noise[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind],'b', label = 'Noisy data with SNR={0:.2f}'.format(SNR))
+	ax222.legend(loc='best',fancybox = True)
+	ax222.set_ylabel('Li$_{2p}$ emission (a.u.)')
+	ax222.set_xlabel('time $t$ (ms)')
+#	ax222.set_xlim(1,2)
+	ax222.set_title('Noisy and Smoothed Emission Time Seriesfor Reference Detector at {0:.2f}cm'.format(Refdec), y = 1.03)
+	plt.tight_layout()
+#	plt.show()
+#	pdb.set_trace()
+	if saving: 
+		f3.savefig('{0:03d}Noise_Fitting_TIME_SNR{1:d}'.format(Measurement,int(SNR*100)))
+
+
 
 #Meshgrids
 X,Y=np.meshgrid(x,y)						# transform x,y-axis in matrix for contourf-plot of 2D-plots
@@ -412,6 +486,12 @@ if DenCase:
 	cbar_timeemission.set_label('density $n_e$ (cm$^{-3}$)')
 
 
+# only use the new noise and smoothed data if selected
+if NoiseTime:
+	Li2p1=Li2p1noise.copy()
+if SmoothTime:
+	Li2p1=Li2p1hn.copy()
+	
 
 # Calculations for conditional average ###########################################################################################
 
@@ -497,7 +577,7 @@ for xlabel_i in cax4.get_xticklabels():
     xlabel_i.set_fontsize(0.0)
     xlabel_i.set_visible(False)
 
-plt.tight_layout()
+#plt.tight_layout()
 
 ##################################################################################################################################
 
@@ -769,10 +849,10 @@ if (Standardblob==True and BlobCount>0):				# only occurs if switch is on and if
 # 	Calculation of relative fluction of intensity in spectrum or density ######################################################
 
 	LiConAv_maxrel = max(LiConAv[:,Refdec_ind])		# Maximum emission value
-	LiConAv_mean = np.mean(LiConAv[:Refdec_ind])		# Mean of emission value at this reference detector
-	LiConAvrel = LiConAv_maxrel/LiConAv_mean			# relative flucutation of intensity/density
+#	LiConAv_mean = np.mean(LiConAv[:Refdec_ind])		# Mean of emission value at this reference detector
+	LiConAvrel = LiConAv_maxrel/LiAv				# relative flucutation of intensity/density
 	print('Relative fluctuation of intensity/density for standard blob: ', LiConAvrel)
-	print('Mean fluctuation of intensity/density for standard blob: ', LiConAv_mean)
+	print('Absolute fluctuation of emission ', LiAv)
 	print('Max fluctuation of intensity/density for standard blob: ', LiConAv_maxrel)
 
 
