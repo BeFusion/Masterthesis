@@ -38,7 +38,8 @@ import pdb					# for error tracking (set_trace at right position)
 ########### READING DATA AND PRELIMINARY settings #############################################################################
 ###############################################################################################################################
 
-filename = '_veltwind_SNR100_Smooth'				# specify fileextension to be read in and to be stored (e.g '_dens_test', if file is called '004Emresults_dens_test')
+savenow = False
+filename = '_veltwind_TIME_SNR050_Smooth'				# specify fileextension to be read in and to be stored (e.g '_dens_test', if file is called '004Emresults_dens_test')
 
 Measurement = 4				# specify number of measurement without leading zeros, which is the prefix of the file in form (will be extended later to e.g. 004) 
 
@@ -454,8 +455,8 @@ leg = ax8.legend(loc='upper center', bbox_to_anchor = (-0.1,-0.05),fancybox = Tr
 
 # leg = ax7.legend(loc='upper center', bbox_to_anchor = (0.225,-0.18),fancybox = True, numpoints = 1)
 
-
-f1.savefig('{0:03d}FigRadial{1:}'.format(Measurement,filename))
+if savenow:
+	f1.savefig('{0:03d}FigRadial{1:}'.format(Measurement,filename))
 
 plt.show()
 
