@@ -759,7 +759,10 @@ for Case in range (3):
 							if (LiConAv_smooth_Null[d]>LiConAv_max/2 and LiConAv_smooth_Null[d-1]<LiConAv_max/2):
 								PeakC[RandCount]=int(d)			# store index in peak counter array (in best case only one entry peakC[1]!)
 								RandCount = RandCount+1
-						low_index = int(max(PeakC))					# lower index is maximum for last time it surpasses HM
+						if max(PeakC)>=0:
+							low_index = int(max(PeakC))					# lower index is maximum for last time it surpasses HM
+						if max(PeakC)<0:
+							low_index = np.nan
 
 						# find closest index to half-max-position (upper index)
 						PeakC = [None]*100					# peak counter array to determine for sure the position of half-max
@@ -798,7 +801,10 @@ for Case in range (3):
 							if (LiConAv[NullPos_ind,d]>LiConAv_max/2 and LiConAv[NullPos_ind,d-1]<LiConAv_max/2):
 								PeakC[RandCount]=int(d)			# store index in peak counter array (in best case only one entry peakC[1]!)
 								RandCount = RandCount+1
-						low_index = int(np.nanmax(PeakC))						# lower index is maximum for last time it surpasses HM
+						if (np.nanmax(PeakC)>=0):			# go only in if there is a real value to calculate (otherwise PeakC is empty)
+							low_index = int(np.nanmax(PeakC))						# lower index is maximum for last time it surpasses HM
+						else:
+							low_index=np.nan
 
 						# find closest index to half-max-position (upper index)
 						PeakC = [None]*100					# peak counter array to determine for sure the position of half-max
@@ -815,7 +821,6 @@ for Case in range (3):
 						if (up_index>5000 or low_index<1 or type(up_index)!=int or type(low_index)!=int):			# exit loop for this analysis if a proper calculation is not possible here
 							blub=999
 							print(blub, 'in up/low_index')
-							pdb.set_trace()
 							if not BlockCase:
 								shift_Block = 0
 							Counterbad, blub, Delx, tau_B, Blobf,vr, rval, vdmax, vimax = write_nan(fu, shift_Block, Measurement,maxlen, NewData, Radial, WriteHeader, DenCase, EmCase, BlockCase, Counterbad, blub, t_start,t_end, x,y,Refdec_ind, shift, BlobCount, Delx, tau_B, Blobf,vr, rval, vdmax, vimax, B0, Lp, q95, Te0, Ti0, ne0, omegaCi, rhoS, endtime, LiConAvrel)
@@ -853,7 +858,11 @@ for Case in range (3):
 						if (LiConAv_self_smooth_long[d]>LiConAv_self_long/2 and LiConAv_self_smooth_long[d-1]<LiConAv_self_long/2):
 							PeakC[RandCount]=int(d)			# store index in peak counter array (in best case only one entry peakC[1]!)
 							RandCount = RandCount+1
-					left_index = int(max(PeakC))					# lower index is maximum for last time it surpasses HM
+					if max(PeakC)>=0:
+						left_index = int(max(PeakC))					# lower index is maximum for last time it surpasses HM
+					if max(PeakC)<0:
+						left_index = np.nan					# lower index is maximum for last time it surpasses HM
+
 
 					# find closest index to half-max-position (upper index)
 					PeakC = [None]*100					# peak counter array to determine for sure the position of half-max
