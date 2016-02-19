@@ -78,7 +78,7 @@ NoiseFast = False			# Enhances speed, if needed for quicker calculation
 Smooth = False			# smooth noisy data
 
 NoiseTime = True
-SmoothTime = True
+SmoothTime = False
 
 # data reading  ################################################################################################################
 
@@ -318,9 +318,9 @@ if NoiseTime:
 	ax111.set_ylabel('Li$_{2p}$ emission (a.u.)')
 	ax111.set_xlabel('time $t$ (ms)')
 	ax111.set_title('Original and Smoothed Emission Time Series for Reference Detector at {0:.2f}cm'.format(Refdec), y = 1.03)
-#	ax111.set_xlim(1,2)
-	
-	''' if only the quick smoothing analysis of the reference detector position is required 
+	ax111.set_xlim(1,2.5)
+	'''
+#	 if only the quick smoothing analysis of the reference detector position is required 
 	noiLi = np.random.normal(0,np.mean(Li2p1[:,shift*2,Refdec_ind])/SNR,timestep)
 	for t_ind in range(int(t_start/avt),int(t_end/avt)):
 		Li2p1[t_ind,shift*2,Refdec_ind] = Li2p1[t_ind,shift2,Refdec_ind]+noiLi[t_ind]
@@ -331,10 +331,12 @@ if NoiseTime:
 		for y_ind in range(stepsize):			
 			noiLi = np.random.normal(0,np.mean(Li2p1[:,y_ind,x_ind])/SNR,timestep)
 			for t_ind in range(int(t_start/avt),int(t_end/avt)):
-						Li2p1noise[t_ind,y_ind,x_ind] = Li2p1[t_ind,y_ind,x_ind]+noiLi[t_ind]
+				Li2p1noise[t_ind,y_ind,x_ind] = Li2p1[t_ind,y_ind,x_ind]+noiLi[t_ind]
+
+
 
 	# smoothing possible noisy data
-	
+
 	def butter_lowpass(cutoff,fs,order=5):
 		nyq = 0.5*fs
 		normal_cutoff = cutoff/nyq
@@ -347,26 +349,33 @@ if NoiseTime:
 	cutoff = 40000
 	fs = 660000
 
+	smoothlen = 51
+
 	Li2p1hn = Li2p1.copy()
+	Li2p1hn2 = Li2p1.copy()
 	for x_ind in range(mn):
 		for y_ind in range(stepsize):		
-			Li2p1hn[int(t_start/avt):int(t_end/avt),y_ind,x_ind] = butter_lowpass_filtfilt(Li2p1noise[int(t_start/avt):int(t_end/avt),y_ind,x_ind],cutoff,fs)
-		
-	ax111.plot(time[int(t_start/avt):int(t_end/avt)],Li21phn[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind],'r', label='Butterworth (5th order)')
+			Li2p1hn2[int(t_start/avt):int(t_end/avt),y_ind,x_ind] = butter_lowpass_filtfilt(Li2p1noise[int(t_start/avt):int(t_end/avt),y_ind,x_ind],cutoff,fs)
+			Li2p1hn[int(t_start/avt):int(t_end/avt),y_ind,x_ind] = smooth(Li2p1noise[int(t_start/avt):int(t_end/avt),y_ind,x_ind],window_len=smoothlen,window='hanning')
+
+	ax111.plot(time[int(t_start/avt):int(t_end/avt)],Li2p1hn[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind],'r', label='Butterworth (5th order)')
+	ax111.plot(time[int(t_start/avt):int(t_end/avt)],Li2p1hn2[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind],'g', label='Hanning')
+
 	ax111.legend(loc='best',fancybox = True,numpoints=1)
 	ax222.plot(time[int(t_start/avt):int(t_end/avt)],Li2p1hn[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind],'r', label = 'Butterworth (5th order)')
 	ax222.plot(time[int(t_start/avt):int(t_end/avt)],Li2p1noise[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind],'b', label = 'Noisy data with SNR={0:.2f}'.format(SNR))
+	ax222.plot(time[int(t_start/avt):int(t_end/avt)],Li2p1hn2[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind],'g', label='Hanning')
 	ax222.legend(loc='best',fancybox = True)
 	ax222.set_ylabel('Li$_{2p}$ emission (a.u.)')
 	ax222.set_xlabel('time $t$ (ms)')
-#	ax222.set_xlim(1,2)
+	ax222.set_xlim(1,2.5)
 	ax222.set_title('Noisy and Smoothed Emission Time Seriesfor Reference Detector at {0:.2f}cm'.format(Refdec), y = 1.03)
 	plt.tight_layout()
 #	plt.show()
 #	pdb.set_trace()
 	if saving: 
 		f3.savefig('{0:03d}Noise_Fitting_TIME_SNR{1:d}'.format(Measurement,int(SNR*100)))
-
+		
 
 
 #Meshgrids
@@ -741,7 +750,7 @@ if (Standardblob==True and BlobCount>0):				# only occurs if switch is on and if
 			if (LiConAv_smooth_Null[e-1]>LiConAv_max/2 and LiConAv_smooth_Null[e]<LiConAv_max/2):
 				PeakC[RandCount]=e			# store index in peak counter array (in best case only one entry peakC[1]!)
 				RandCount = RandCount+1	
-		up_index = min(PeakC)					# up index is minimum index for first time it surpasses HM
+		up_index = int(min(PeakC))					# up index is minimum index for first time it surpasses HM
 		Delx = abs(x_inter[low_index]-x_inter[up_index])/2.	# HWHM of intensity at Delt = 0.
 		print('HWHM of standard blob (interpolated data): {0:.3f}cm'.format(Delx))
 
@@ -758,7 +767,7 @@ if (Standardblob==True and BlobCount>0):				# only occurs if switch is on and if
 			if (LiConAv[NullPos_ind,d]>LiConAv_max/2 and LiConAv[NullPos_ind,d-1]<LiConAv_max/2):
 				PeakC[RandCount]=d			# store index in peak counter array (in best case only one entry peakC[1]!)
 				RandCount = RandCount+1
-		low_index = max(PeakC)					# lower index is maximum for last time it surpasses HM
+		low_index = int(max(PeakC))					# lower index is maximum for last time it surpasses HM
 
 		# find closest index to half-max-position (upper index)
 		PeakC = [None]*10					# peak counter array to determine for sure the position of half-max
@@ -769,7 +778,7 @@ if (Standardblob==True and BlobCount>0):				# only occurs if switch is on and if
 			if (LiConAv[NullPos_ind,e-1]>LiConAv_max/2 and LiConAv[NullPos_ind,e]<LiConAv_max/2):
 				PeakC[RandCount]=e			# store index in peak counter array (in best case only one entry peakC[1]!)
 				RandCount = RandCount+1	
-		up_index = min(PeakC)					# up index is minimum index for first time it surpasses HM
+		up_index = int(min(PeakC))					# up index is minimum index for first time it surpasses HM
 		Delx = (x_axis[low_index]-x_axis[up_index])/2.		# HWHM of intensity at Delt = 0.
 		print('HWHM of standard blob: {0:.3f}cm'.format(Delx))
 
@@ -799,9 +808,9 @@ if (Standardblob==True and BlobCount>0):				# only occurs if switch is on and if
 	RandCount = 1
 	for d in range (self_ind):
 		if (LiConAv_self_smooth_long[d]>LiConAv_self_long/2 and LiConAv_self_smooth_long[d-1]<LiConAv_self_long/2):
-			PeakC[RandCount]=d			# store index in peak counter array (in best case only one entry peakC[1]!)
+			PeakC[RandCount]=int(d)			# store index in peak counter array (in best case only one entry peakC[1]!)
 			RandCount = RandCount+1
-	left_index = max(PeakC)					# lower index is maximum for last time it surpasses HM
+	left_index = int(max(PeakC))					# lower index is maximum for last time it surpasses HM
 
 	# find closest index to half-max-position (upper index)
 	PeakC = [None]*10					# peak counter array to determine for sure the position of half-max
@@ -810,9 +819,9 @@ if (Standardblob==True and BlobCount>0):				# only occurs if switch is on and if
 	RandCount = 1
 	for e in range (self_ind+1,len(TWind_inter_long)):
 		if (LiConAv_self_smooth_long[e-1]>LiConAv_self_long/2 and LiConAv_self_smooth_long[e]<LiConAv_self_long/2):
-			PeakC[RandCount]=e			# store index in peak counter array (in best case only one entry peakC[1]!)
+			PeakC[RandCount]=int(e)			# store index in peak counter array (in best case only one entry peakC[1]!)
 			RandCount = RandCount+1	
-	right_index = min(PeakC)				# up index is minimum index for first time it surpasses HM
+	right_index = int(min(PeakC))				# up index is minimum index for first time it surpasses HM
 	if (right_index==10000 or left_index==0):
 		 sys.exit('Please change time-window, because HWHM-calculation could not take place')
 	tau_B = (TWind_inter_long[right_index]-TWind_inter_long[left_index])/2.	# HWHM of intensity at Delt = 0.

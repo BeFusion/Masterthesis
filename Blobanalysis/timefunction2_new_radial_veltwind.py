@@ -243,7 +243,7 @@ for Case in range (3):
 			for y_ind in range(stepsize):			
 				noiLi = np.random.normal(0,np.mean(Li2p1[:,y_ind,x_ind])/SNR,timestep)
 				for t_ind in range(int(t_start/avt),int(t_end/avt)):
-							Li2p1noise[t_ind,y_ind,x_ind] = Li2p1[t_ind,y_ind,x_ind]+noiLi[t_ind]
+					Li2p1noise[t_ind,y_ind,x_ind] = Li2p1[t_ind,y_ind,x_ind]+noiLi[t_ind]
 
 		# smoothing possible noisy data
 		
@@ -259,11 +259,15 @@ for Case in range (3):
 		cutoff = 40000
 		fs = 660000
 
+		smoothlen = 41
+
 		Li2p1hn = Li2p1.copy()
+		Li2p1hn2 = Li2p1.copy()
 		for x_ind in range(mn):
 			for y_ind in range(stepsize):		
-				Li2p1hn[int(t_start/avt):int(t_end/avt),y_ind,x_ind] = butter_lowpass_filtfilt(Li2p1noise[int(t_start/avt):int(t_end/avt),y_ind,x_ind],cutoff,fs)
-				
+				Li2p1hn2[int(t_start/avt):int(t_end/avt),y_ind,x_ind] = butter_lowpass_filtfilt(Li2p1noise[int(t_start/avt):int(t_end/avt),y_ind,x_ind],cutoff,fs)
+				Li2p1hn[int(t_start/avt):int(t_end/avt),y_ind,x_ind] = smooth(Li2p1noise[int(t_start/avt):int(t_end/avt),y_ind,x_ind],window_len=smoothlen,window='hanning')
+
 		# only use the new noise and smoothed data if selected
 		Li2p1=Li2p1noise.copy()
 		if SmoothTime:
@@ -314,11 +318,15 @@ for Case in range (3):
 					return y
 				cutoff = 40000
 				fs = 660000
+				
+				smoothlen = 41
 
 				Li2p1hn = Li2p1.copy()
+				Li2p1hn2 = Li2p1.copy()
 				for x_ind in range(len(x)):		
-					Li2p1hn[int(t_start/avt):int(t_end/avt),0,x_ind] = butter_lowpass_filtfilt(Li2p1noise[int(t_start/avt):int(t_end/avt),0,x_ind],cutoff,fs)
-						
+					Li2p1hn2[int(t_start/avt):int(t_end/avt),0,x_ind] = butter_lowpass_filtfilt(Li2p1noise[int(t_start/avt):int(t_end/avt),0,x_ind],cutoff,fs)
+					Li2p1hn[int(t_start/avt):int(t_end/avt),0,x_ind] = smooth(Li2p1noise[int(t_start/avt):int(t_end/avt),0,x_ind],window_len=smoothlen,window='hanning')
+	
 				# only use the new noise and smoothed data if selected
 				Li2p1=Li2p1noise.copy()
 				if SmoothTime:
@@ -749,9 +757,9 @@ for Case in range (3):
 						RandCount = 1
 						for d in range (max_ind):
 							if (LiConAv_smooth_Null[d]>LiConAv_max/2 and LiConAv_smooth_Null[d-1]<LiConAv_max/2):
-								PeakC[RandCount]=d			# store index in peak counter array (in best case only one entry peakC[1]!)
+								PeakC[RandCount]=int(d)			# store index in peak counter array (in best case only one entry peakC[1]!)
 								RandCount = RandCount+1
-						low_index = max(PeakC)					# lower index is maximum for last time it surpasses HM
+						low_index = int(max(PeakC))					# lower index is maximum for last time it surpasses HM
 
 						# find closest index to half-max-position (upper index)
 						PeakC = [None]*100					# peak counter array to determine for sure the position of half-max
@@ -760,11 +768,11 @@ for Case in range (3):
 						RandCount = 1
 						for e in range (max_ind+1,len(x_inter)):
 							if (LiConAv_smooth_Null[e-1]>LiConAv_max/2 and LiConAv_smooth_Null[e]<LiConAv_max/2):
-								PeakC[RandCount]=e			# store index in peak counter array (in best case only one entry peakC[1]!)
+								PeakC[RandCount]=int(e)			# store index in peak counter array (in best case only one entry peakC[1]!)
 								RandCount = RandCount+1	
-						up_index = min(PeakC)					# up index is minimum index for first time it surpasses HM
+						up_index = int(min(PeakC))					# up index is minimum index for first time it surpasses HM
 						
-						if (up_index>5000 or low_index<1):			# exit loop for this analysis if a proper calculation is not possible here
+						if (up_index>5000 or low_index<1 or type(up_index)!=int or type(low_index)!=int):			# exit loop for this analysis if a proper calculation is not possible here
 							blub=999
 							print(blub, 'in up/low_index')
 							Counterbad, blub, Delx, tau_B, Blobf,vr, rval, vdmax, vimax = write_nan(fu, shift_Block, Measurement,maxlen, NewData, Radial, WriteHeader, DenCase, EmCase, BlockCase, Counterbad, blub, t_start,t_end, x,y,Refdec_ind, shift, BlobCount, Delx, tau_B, Blobf,vr, rval, vdmax, vimax, B0, Lp, q95, Te0, Ti0, ne0, omegaCi, rhoS, endtime, LiConAvrel)
@@ -788,9 +796,9 @@ for Case in range (3):
 						RandCount = 1
 						for d in range (max_ind):
 							if (LiConAv[NullPos_ind,d]>LiConAv_max/2 and LiConAv[NullPos_ind,d-1]<LiConAv_max/2):
-								PeakC[RandCount]=d			# store index in peak counter array (in best case only one entry peakC[1]!)
+								PeakC[RandCount]=int(d)			# store index in peak counter array (in best case only one entry peakC[1]!)
 								RandCount = RandCount+1
-						low_index = np.nanmax(PeakC)					# lower index is maximum for last time it surpasses HM
+						low_index = int(np.nanmax(PeakC))						# lower index is maximum for last time it surpasses HM
 
 						# find closest index to half-max-position (upper index)
 						PeakC = [None]*100					# peak counter array to determine for sure the position of half-max
@@ -799,14 +807,15 @@ for Case in range (3):
 						RandCount = 1
 						for e in range (max_ind+1,len(x)):
 							if (LiConAv[NullPos_ind,e-1]>LiConAv_max/2 and LiConAv[NullPos_ind,e]<LiConAv_max/2):
-								PeakC[RandCount]=e			# store index in peak counter array (in best case only one entry peakC[1]!)
+								PeakC[RandCount]=int(e)			# store index in peak counter array (in best case only one entry peakC[1]!)
 								RandCount = RandCount+1	
-						up_index = min(PeakC)					# up index is minimum index for first time it surpasses HM
+						up_index = int(min(PeakC))					# up index is minimum index for first time it surpasses HM
 						print('low index', low_index, 'up_index', up_index)
 						
-						if (up_index>5000 or low_index<1):			# exit loop for this analysis if a proper calculation is not possible here
+						if (up_index>5000 or low_index<1 or type(up_index)!=int or type(low_index)!=int):			# exit loop for this analysis if a proper calculation is not possible here
 							blub=999
 							print(blub, 'in up/low_index')
+							pdb.set_trace()
 							if not BlockCase:
 								shift_Block = 0
 							Counterbad, blub, Delx, tau_B, Blobf,vr, rval, vdmax, vimax = write_nan(fu, shift_Block, Measurement,maxlen, NewData, Radial, WriteHeader, DenCase, EmCase, BlockCase, Counterbad, blub, t_start,t_end, x,y,Refdec_ind, shift, BlobCount, Delx, tau_B, Blobf,vr, rval, vdmax, vimax, B0, Lp, q95, Te0, Ti0, ne0, omegaCi, rhoS, endtime, LiConAvrel)
@@ -842,9 +851,9 @@ for Case in range (3):
 					RandCount = 1
 					for d in range (self_ind):
 						if (LiConAv_self_smooth_long[d]>LiConAv_self_long/2 and LiConAv_self_smooth_long[d-1]<LiConAv_self_long/2):
-							PeakC[RandCount]=d			# store index in peak counter array (in best case only one entry peakC[1]!)
+							PeakC[RandCount]=int(d)			# store index in peak counter array (in best case only one entry peakC[1]!)
 							RandCount = RandCount+1
-					left_index = max(PeakC)					# lower index is maximum for last time it surpasses HM
+					left_index = int(max(PeakC))					# lower index is maximum for last time it surpasses HM
 
 					# find closest index to half-max-position (upper index)
 					PeakC = [None]*100					# peak counter array to determine for sure the position of half-max
@@ -853,10 +862,10 @@ for Case in range (3):
 					RandCount = 1
 					for e in range (self_ind+1,len(TWind_inter_long)):
 						if (LiConAv_self_smooth_long[e-1]>LiConAv_self_long/2 and LiConAv_self_smooth_long[e]<LiConAv_self_long/2):
-							PeakC[RandCount]=e			# store index in peak counter array (in best case only one entry peakC[1]!)
+							PeakC[RandCount]=int(e)			# store index in peak counter array (in best case only one entry peakC[1]!)
 							RandCount = RandCount+1	
-					right_index = min(PeakC)				# up index is minimum index for first time it surpasses HM
-					if (right_index>5000 or left_index==0):
+					right_index = int(min(PeakC))				# up index is minimum index for first time it surpasses HM
+					if (right_index>5000 or left_index==0  or type(left_index)!=int or type(right_index)!=int):
 						blub==999	
 						print(blub)			# exit analysis because of bad result
 						if not BlockCase:
@@ -867,7 +876,7 @@ for Case in range (3):
 					if (right_index==10000 or left_index==0):
 						sys.exit('Please change time-window, because HWHM-calculation could not take place')
 					tau_B = (TWind_inter_long[right_index]-TWind_inter_long[left_index])/2.	# HWHM of intensity at Delt = 0.
-					print('Self correlation time of standard blob: {0:.3f}ms'.format(tau_B))
+		#			print('Self correlation time of standard blob: {0:.3f}ms'.format(tau_B))
 					self_TWind_inter = TWind_inter
 					self_TWind_inter_long = TWind_inter_long
 
