@@ -78,7 +78,7 @@ NoiseFast = False			# Enhances speed, if needed for quicker calculation
 Smooth = False			# smooth noisy data
 
 NoiseTime = True
-SmoothTime = False
+SmoothTime = True
 
 # data reading  ################################################################################################################
 
@@ -184,7 +184,6 @@ if Noise:
 	Li2p1hm = Li2p1.copy()
 	Li2p1ba = Li2p1.copy()
 	Li2p1bl = Li2p1.copy()
-	smoothlen = 71
 	if NoiseFast:
 		if not BlockCase:
 			for t_ind in range(timestep):
@@ -241,6 +240,175 @@ if BlockCase:
 	shift_Block = shift
 	shift = 0									# we are in the 1D-Case, so every time the entry at shift is called in matrix, this is set to the zero entry
 
+# Calculate index and position of Reference detector on xaxis (indices are counted backwards x[len(x)-1]<0!)
+	print('Reference detector has to be shifted to a position available for beam evaluation!')
+	countx=0
+	for g in range (0,len(x)):
+		if (x[g]<0):				# take negative values into account for correct shift
+			countx=countx+1			# number of elements, which are negative
+	Refdec_ind = len(x)-int(Refdec/blur)-1 - countx	# index for Reference detector position
+	print('Position along beam-axis for Reference Detector in Block-Case: {0:.2f}cm'.format(x[Refdec_ind])) # check, if Reference detector is at correct position
+	print('Position of Reference Detector set in Parameter-file: {0:.2f}cm'.format(Refdec)) # check, if Reference detector is at correct position
+	if (Refdec>x[0]):				# exit, if error with reference detector position occurs
+		sys.exit('Reference Detector outside of observable region')
+
+if not BlockCase:					# otherwise this position is determined later
+	countx=0
+	for g in range (0,len(x)):
+		if (x[g]<0):				# take negative values into account for correct shift
+			countx=countx+1			# number of elements, which are negative
+	Refdec_ind = len(x)-Refdec/0.02-1 - countx	# index for Reference detector position
+	print('Position along beam-axis for Reference Detector: {0:.2f}cm'.format(x[Refdec_ind])) # check, if Reference detector is at correct position
+	if (Refdec>x[0]):				# exit, if error with reference detector position occurs
+		sys.exit('Reference Detector outside of observable region')
+
+# noise on time signal ans smoothing
+
+if NoiseTime:
+	print('The SNR is set to: {0:.2f}'.format(SNR))
+	# plot to see the impact of Noise
+	f3=plt.figure(figsize=(16,16), facecolor = 'white')
+	gs = gridspec.GridSpec(3, 3)
+	gs.update(wspace=0.15,hspace=0.35)
+	ax111 = plt.subplot(gs[0,:])
+	ax222 = plt.subplot(gs[1,:])
+	ax333 = plt.subplot(gs[2,0])
+	ax444 = plt.subplot(gs[2,1])
+	ax555 = plt.subplot(gs[2,2])
+
+	
+	ax111.plot(time[int(t_start/avt):int(t_end/avt)],Li2p1[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind],'r', label = 'original data')
+	ax111.set_ylabel('Li$_{2p}$ emission (a.u.)')
+	ax111.set_xlabel('time $t$ (ms)')
+	ax111.set_title('Original and Smoothed Emission Time Series for Reference Detector at {0:.2f}cm'.format(Refdec), y = 1.03)
+	ax111.set_xlim(0.25,time[-1])
+	'''
+#	 if only the quick smoothing analysis of the reference detector position is required 
+	noiLi = np.random.normal(0,np.mean(Li2p1[:,shift*2,Refdec_ind])/SNR,timestep)
+	for t_ind in range(int(t_start/avt),int(t_end/avt)):
+		Li2p1[t_ind,shift*2,Refdec_ind] = Li2p1[t_ind,shift2,Refdec_ind]+noiLi[t_ind]
+	Li2p1noise=Li2p1.copy()
+	'''
+#	for testing of smoothing use only reference position to check
+	testsmooth = False
+
+	if testsmooth == True:
+		Li2p1noise= Li2p1.copy()
+		for x_ind in range(mn):	
+			noiLi = np.random.normal(0,np.mean(Li2p1[:,shift*2,x_ind])/SNR,timestep)
+			for t_ind in range(int(t_start/avt),int(t_end/avt)):
+				Li2p1noise[t_ind,shift*2,x_ind] = Li2p1[t_ind,shift*2,x_ind]+noiLi[t_ind]
+
+		# smoothing possible noisy data
+
+		def butter_lowpass(cutoff,fs,order=5):
+			nyq = 0.5*fs
+			normal_cutoff = cutoff/nyq
+			b, a = signal.butter(order, normal_cutoff, btype = 'low', analog = False)
+			return b, a
+		def butter_lowpass_filtfilt(data, cutoff, fs, order=5):
+			b, a = butter_lowpass(cutoff, fs, order = order)
+			y = signal.filtfilt(b, a, data)
+			return y
+		cutoff = 6000
+		fs = 200000
+
+		Li2p1hn = Li2p1.copy()
+		Li2p1hn2 = Li2p1.copy()
+		for x_ind in range(mn):
+			Li2p1hn2[int(t_start/avt):int(t_end/avt),shift*2,x_ind] = butter_lowpass_filtfilt(Li2p1noise[int(t_start/avt):int(t_end/avt),shift*2,x_ind],cutoff,fs)
+			Li2p1hn[int(t_start/avt):int(t_end/avt),shift*2,x_ind] = smooth(Li2p1noise[int(t_start/avt):int(t_end/avt),shift*2,x_ind],window_len=smoothlen,window='hanning')
+
+	#	smooth x-direction afterwards for Em-Case (high resolution)
+		Li2p1xs = Li2p1.copy()
+		Li2p1xs[position,shift*2,:] = smooth(Li2p1hn[position,shift*2,:],window_len=smoothlenx,window='hanning')
+		
+	if testsmooth == False:
+		Li2p1noise=Li2p1.copy()
+		for x_ind in range(mn):
+			for y_ind in range(stepsize):			
+				noiLi = np.random.normal(0,np.mean(Li2p1[:,y_ind,x_ind])/SNR,timestep)
+				for t_ind in range(int(t_start/avt),int(t_end/avt)):
+					Li2p1noise[t_ind,y_ind,x_ind] = Li2p1[t_ind,y_ind,x_ind]+noiLi[t_ind]
+
+
+
+		# smoothing possible noisy data
+
+		def butter_lowpass(cutoff,fs,order=5):
+			nyq = 0.5*fs
+			normal_cutoff = cutoff/nyq
+			b, a = signal.butter(order, normal_cutoff, btype = 'low', analog = False)
+			return b, a
+		def butter_lowpass_filtfilt(data, cutoff, fs, order=5):
+			b, a = butter_lowpass(cutoff, fs, order = order)
+			y = signal.filtfilt(b, a, data)
+			return y
+		cutoff = 6000
+		fs = 200000
+
+	#	smoothlen = 51
+
+		Li2p1hn = Li2p1.copy()
+		Li2p1hn2 = Li2p1.copy()
+		for x_ind in range(mn):
+			for y_ind in range(stepsize):		
+				Li2p1hn2[int(t_start/avt):int(t_end/avt),y_ind,x_ind] = butter_lowpass_filtfilt(Li2p1noise[int(t_start/avt):int(t_end/avt),y_ind,x_ind],cutoff,fs)
+				Li2p1hn[int(t_start/avt):int(t_end/avt),y_ind,x_ind] = smooth(Li2p1noise[int(t_start/avt):int(t_end/avt),y_ind,x_ind],window_len=smoothlen,window='hanning')
+
+	#	smooth x-direction afterwards for Em-Case (high resolution)
+		Li2p1xs = Li2p1.copy()
+		for t_ind in range(timestep):
+			for y_ind in range(stepsize):
+				Li2p1xs[t_ind,y_ind,:] = smooth(Li2p1hn[t_ind,y_ind,:],window_len=smoothlenx,window='hanning')
+		
+
+# 	create plots for smoothing
+	ax111.plot(time[int(t_start/avt):int(t_end/avt)],Li2p1hn2[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind],'orange', label='Butterworth (5th order)')
+	ax111.plot(time[int(t_start/avt):int(t_end/avt)],Li2p1hn[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind],'b', label='Hanning')
+
+	ax111.legend(loc='best',fancybox = True,numpoints=1)
+	ax222.plot(time[int(t_start/avt):int(t_end/avt)],Li2p1hn2[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind],'orange', label = 'Butterworth (5th order)')
+	ax222.plot(time[int(t_start/avt):int(t_end/avt)],Li2p1noise[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind],'r', label = 'Noisy data with SNR={0:.2f}'.format(SNR))
+	ax222.plot(time[int(t_start/avt):int(t_end/avt)],Li2p1hn[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind],'b', label='Hanning')
+	ax222.legend(loc='best',fancybox = True)
+	ax222.set_ylabel('Li$_{2p}$ emission (a.u.)')
+	ax222.set_xlabel('time $t$ (ms)')
+	ax222.set_xlim(0.25,time[-1])
+	ax222.set_title('Noisy and Smoothed Emission Time Seriesfor Reference Detector at {0:.2f}cm'.format(Refdec), y = 1.03)
+
+	ax333.plot(x,Li2p1[position,shift*2,:],'r', label='original data')
+	ax333.plot(x,Li2p1xs[position,shift*2,:],'b', label = 'Hanning')
+	ax333.set_ylabel('Li$_{2p}$ emission (a.u.)')
+	ax333.set_xlabel('beam axis $x$ (cm)')	
+	ax333.set_title('beam emission spectrum with SNR={0:.2f} at {1:.2f}ms and y={2:.2f}cm for original data, noisy data and time smoothed data'.format(SNR, point,Refdec), x = 1.5, y=1.02)
+	ax333.legend(loc='best',fancybox = True, numpoints = 1)
+
+	ax444.plot(x,Li2p1noise[position,shift*2,:],'r', label = 'Noisy data (SNR={0:.2f})'.format(SNR))
+	ax444.plot(x,Li2p1xs[position,shift*2,:],'b', label = 'Hanning')
+#	ax444.set_ylabel('Li$_{2p}$ emission fluctuation (a.u.)')
+	ax444.set_xlabel('beam axis $x$ (cm)')
+	ax444.legend(loc='best',fancybox = True, numpoints = 1)
+
+	ax555.plot(x,Li2p1hn[position,shift*2,:],'r', label = 'time smoothed data')
+	ax555.plot(x,Li2p1xs[position,shift*2,:],'b', label = 'Hanning')
+#	ax555.set_ylabel('Li$_{2p}$ emission fluctuation (a.u.)')
+	ax555.set_xlabel('beam axis $x$ (cm)')
+	ax555.legend(loc='best',fancybox = True, numpoints = 1)
+
+
+#	plt.tight_layout()
+#	plt.show()
+#	pdb.set_trace()
+	if saving: 
+		f3.savefig('{0:03d}Noise_Fitting_TIME_SNR{1:d}'.format(Measurement,int(SNR*100)))
+
+#	now use data
+	Li2p1 = Li2p1xs.copy()
+	Li2p1cop = Li2p1xs.copy()	# used for passing to detector function
+	
+
+
 
 #Create zero-mean fluctuation matrix
 #neZ = ne.copy()
@@ -277,107 +445,6 @@ if DenCase:
 		Li2p1Z[t_ind,:,:]=ne[t_ind,:,:]-mean  # subtract mean value for every timestep (takes most of the time for the program!)
 
 
-# Calculate index and position of Reference detector on xaxis (indices are counted backwards x[len(x)-1]<0!)
-if BlockCase:
-	print('Reference detector has to be shifted to a position available for beam evaluation!')
-	countx=0
-	for g in range (0,len(x)):
-		if (x[g]<0):				# take negative values into account for correct shift
-			countx=countx+1			# number of elements, which are negative
-	Refdec_ind = len(x)-int(Refdec/blur)-1 - countx	# index for Reference detector position
-	print('Position along beam-axis for Reference Detector in Block-Case: {0:.2f}cm'.format(x[Refdec_ind])) # check, if Reference detector is at correct position
-	print('Position of Reference Detector set in Parameter-file: {0:.2f}cm'.format(Refdec)) # check, if Reference detector is at correct position
-	if (Refdec>x[0]):				# exit, if error with reference detector position occurs
-		sys.exit('Reference Detector outside of observable region')
-
-if not BlockCase:					# otherwise this position is determined later
-	countx=0
-	for g in range (0,len(x)):
-		if (x[g]<0):				# take negative values into account for correct shift
-			countx=countx+1			# number of elements, which are negative
-	Refdec_ind = len(x)-Refdec/0.02-1 - countx	# index for Reference detector position
-	print('Position along beam-axis for Reference Detector: {0:.2f}cm'.format(x[Refdec_ind])) # check, if Reference detector is at correct position
-	if (Refdec>x[0]):				# exit, if error with reference detector position occurs
-		sys.exit('Reference Detector outside of observable region')
-
-# noise on time signal ans smoothing
-
-if NoiseTime:
-	print('The SNR is set to: {0:.2f}'.format(SNR))
-	# plot to see the impact of Noise
-	f3=plt.figure(figsize=(16,16), facecolor = 'white')
-	gs = gridspec.GridSpec(2, 1,				# ratio of grid space (2 plots per collumn, 3 per row)
-			width_ratios=[1],		# width ratios of the 3 plots per row
-			height_ratios=[1,1]		# height ratios of the 2 polots per collumn
-			)
-	ax111 = plt.subplot(gs[0])
-	ax222 = plt.subplot(gs[1])
-
-	
-	ax111.plot(time[int(t_start/avt):int(t_end/avt)],Li2p1[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind],'b', label = 'original data')
-	ax111.set_ylabel('Li$_{2p}$ emission (a.u.)')
-	ax111.set_xlabel('time $t$ (ms)')
-	ax111.set_title('Original and Smoothed Emission Time Series for Reference Detector at {0:.2f}cm'.format(Refdec), y = 1.03)
-	ax111.set_xlim(1,2.5)
-	'''
-#	 if only the quick smoothing analysis of the reference detector position is required 
-	noiLi = np.random.normal(0,np.mean(Li2p1[:,shift*2,Refdec_ind])/SNR,timestep)
-	for t_ind in range(int(t_start/avt),int(t_end/avt)):
-		Li2p1[t_ind,shift*2,Refdec_ind] = Li2p1[t_ind,shift2,Refdec_ind]+noiLi[t_ind]
-	Li2p1noise=Li2p1.copy()
-	'''
-	Li2p1noise=Li2p1.copy()
-	for x_ind in range(mn):
-		for y_ind in range(stepsize):			
-			noiLi = np.random.normal(0,np.mean(Li2p1[:,y_ind,x_ind])/SNR,timestep)
-			for t_ind in range(int(t_start/avt),int(t_end/avt)):
-				Li2p1noise[t_ind,y_ind,x_ind] = Li2p1[t_ind,y_ind,x_ind]+noiLi[t_ind]
-
-
-
-	# smoothing possible noisy data
-
-	def butter_lowpass(cutoff,fs,order=5):
-		nyq = 0.5*fs
-		normal_cutoff = cutoff/nyq
-		b, a = signal.butter(order, normal_cutoff, btype = 'low', analog = False)
-		return b, a
-	def butter_lowpass_filtfilt(data, cutoff, fs, order=5):
-		b, a = butter_lowpass(cutoff, fs, order = order)
-		y = signal.filtfilt(b, a, data)
-		return y
-	cutoff = 40000
-	fs = 660000
-
-	smoothlen = 51
-
-	Li2p1hn = Li2p1.copy()
-	Li2p1hn2 = Li2p1.copy()
-	for x_ind in range(mn):
-		for y_ind in range(stepsize):		
-			Li2p1hn2[int(t_start/avt):int(t_end/avt),y_ind,x_ind] = butter_lowpass_filtfilt(Li2p1noise[int(t_start/avt):int(t_end/avt),y_ind,x_ind],cutoff,fs)
-			Li2p1hn[int(t_start/avt):int(t_end/avt),y_ind,x_ind] = smooth(Li2p1noise[int(t_start/avt):int(t_end/avt),y_ind,x_ind],window_len=smoothlen,window='hanning')
-
-	ax111.plot(time[int(t_start/avt):int(t_end/avt)],Li2p1hn[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind],'r', label='Butterworth (5th order)')
-	ax111.plot(time[int(t_start/avt):int(t_end/avt)],Li2p1hn2[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind],'g', label='Hanning')
-
-	ax111.legend(loc='best',fancybox = True,numpoints=1)
-	ax222.plot(time[int(t_start/avt):int(t_end/avt)],Li2p1hn[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind],'r', label = 'Butterworth (5th order)')
-	ax222.plot(time[int(t_start/avt):int(t_end/avt)],Li2p1noise[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind],'b', label = 'Noisy data with SNR={0:.2f}'.format(SNR))
-	ax222.plot(time[int(t_start/avt):int(t_end/avt)],Li2p1hn2[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind],'g', label='Hanning')
-	ax222.legend(loc='best',fancybox = True)
-	ax222.set_ylabel('Li$_{2p}$ emission (a.u.)')
-	ax222.set_xlabel('time $t$ (ms)')
-	ax222.set_xlim(1,2.5)
-	ax222.set_title('Noisy and Smoothed Emission Time Seriesfor Reference Detector at {0:.2f}cm'.format(Refdec), y = 1.03)
-	plt.tight_layout()
-#	plt.show()
-#	pdb.set_trace()
-	if saving: 
-		f3.savefig('{0:03d}Noise_Fitting_TIME_SNR{1:d}'.format(Measurement,int(SNR*100)))
-		
-
-
 #Meshgrids
 X,Y=np.meshgrid(x,y)						# transform x,y-axis in matrix for contourf-plot of 2D-plots
 if BlockCase:
@@ -397,6 +464,7 @@ gs = gridspec.GridSpec(4, 1,				# ratio of grid space (2 plots per collumn, 3 pe
                        width_ratios=[1],		# width ratios of the 3 plots per row
                        height_ratios=[1,1,1,1]		# height ratios of the 2 polots per collumn
                        )
+gs.update(wspace=0.15,hspace=0.15)
 
 #define limits for plots
 xmin=0.0
@@ -877,7 +945,7 @@ if (Standardblob==True and BlobCount>0):				# only occurs if switch is on and if
                        width_ratios=[1,1],		# width ratios of the 3 plots per row
                        height_ratios=[1,1]		# height ratios of the 2 polots per collumn
                        )
-
+	gs.update(wspace=0.15,hspace=0.35)
 
 	# create axes with the ratios specified in gs above. ax5, ax6 are the axes for the colorbars:
 	ax21 = plt.subplot(gs[0])
@@ -1097,7 +1165,7 @@ if NewData:					# Write only, if needed
 	fu.write(myrow)							# write to file
 	fu.close()
 
-plt.tight_layout()
+#plt.tight_layout()
 
 if saving:
 	f1.savefig('{0:03d}Fig1_{1:}'.format(Measurement,storename))

@@ -7,6 +7,7 @@
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
+# matplotlib.use('GTK')  #default backend, can be changed by matplotlib = reload(matplolib) and then plt.switch_backend('GTK') in e.g. pdb.
 import matplotlib.pyplot as plt
 #from sympy import *
 from pylab import plot
@@ -60,7 +61,7 @@ import resource
 # Evaluates the 'infinite' resolved beam emission, the density evaluation or the Block evaluation case
 
 Measurement=4				# select number of measurment to treat (is used for hdf-selection etc)
-storepref = '_veltwind'				# specify fileextension to be read in and to be stored (e.g '_dens_test', if file is called '004Emresults_dens_test')
+storepref = '_veltwind_TEST'				# specify fileextension to be read in and to be stored (e.g '_dens_test', if file is called '004Emresults_dens_test')
 
 
 # Case Loop
@@ -191,19 +192,7 @@ for Case in range (3):
 	avy=y[stepsize-1]/stepsize			
 	avt=time[timestep-1]/timestep
 
-	# some matrices we need copies from during the run:
 
-	if DenCase:
-		Li2p1Z = ne.copy()				 # copy matrix for use in calculation of Lip1Z (the zero-mean-fluctuation)
-		LiBlobEm = ne.copy()				 # copy Li-Matrix for BlobCount use
-	if not DenCase:
-		Li2p1Z = Li2p1.copy()				 # copy matrix for use in calculation of Lip1Z (the zero-mean-fluctuation)
-		LiBlobEm = Li2p1.copy()				 # copy Li-Matrix for BlobCount use
-
-	if BlockCase:		# stuff which is always overwritten inside of Block-Case-loop and which has to be copied in...
-		xcop = x.copy()
-		Li2p1cop = Li2p1.copy()			         # used for passing in detector function
-		mncop = mn
 
 	
 	if Noise:
@@ -220,7 +209,7 @@ for Case in range (3):
 		#	Li2p1hm = Li2p1.copy()
 		#	Li2p1ba = Li2p1.copy()
 		#	Li2p1bl = Li2p1.copy()
-			smoothlen = 71
+
 			for t_ind in range(timestep):
 				for y_ind in range(stepsize):
 					Li2p1hn[t_ind,y_ind,:] = smooth(Li2p1[t_ind,y_ind,:],window_len=smoothlen,window='hanning')
@@ -238,6 +227,7 @@ for Case in range (3):
 			Li2p1[t_ind,shift*2,Refdec_ind] = Li2p1[t_ind,shift2,Refdec_ind]+noiLi[t_ind]
 		Li2p1noise=Li2p1.copy()
 		'''
+		Li2p1_orio = Li2p1.copy()
 		Li2p1noise=Li2p1.copy()
 		for x_ind in range(mn):
 			for y_ind in range(stepsize):			
@@ -256,10 +246,8 @@ for Case in range (3):
 			b, a = butter_lowpass(cutoff, fs, order = order)
 			y = signal.filtfilt(b, a, data)
 			return y
-		cutoff = 40000
-		fs = 660000
-
-		smoothlen = 41
+		cutoff = 6000
+		fs = 200000
 
 		Li2p1hn = Li2p1.copy()
 		Li2p1hn2 = Li2p1.copy()
@@ -268,11 +256,31 @@ for Case in range (3):
 				Li2p1hn2[int(t_start/avt):int(t_end/avt),y_ind,x_ind] = butter_lowpass_filtfilt(Li2p1noise[int(t_start/avt):int(t_end/avt),y_ind,x_ind],cutoff,fs)
 				Li2p1hn[int(t_start/avt):int(t_end/avt),y_ind,x_ind] = smooth(Li2p1noise[int(t_start/avt):int(t_end/avt),y_ind,x_ind],window_len=smoothlen,window='hanning')
 
+#		smooth x-direction afterwards for Em-Case (high resolution)
+		Li2p1xs = Li2p1.copy()
+		for t_ind in range(timestep):
+			for y_ind in range(stepsize):
+				Li2p1xs[t_ind,y_ind,:] = smooth(Li2p1hn[t_ind,y_ind,:],window_len=smoothlenx,window='hanning')
+		
+
 		# only use the new noise and smoothed data if selected
 		Li2p1=Li2p1noise.copy()
 		if SmoothTime:
-			Li2p1=Li2p1hn.copy()
+			Li2p1 = Li2p1xs.copy()
 	
+
+	# some stuff we need copies from during the run:
+
+	if BlockCase:						 # stuff which is always overwritten inside of Block-Case-loop and which has to be copied in...
+		xcop = x.copy()
+		Li2p1cop = Li2p1.copy()			         # used for passing in detector function
+		mncop = mn
+	if DenCase:
+		Li2p1Z = ne.copy()				 # copy matrix for use in calculation of Lip1Z (the zero-mean-fluctuation)
+		LiBlobEm = ne.copy()				 # copy Li-Matrix for BlobCount use
+	if not DenCase:
+		Li2p1Z = Li2p1.copy()				 # copy matrix for use in calculation of Lip1Z (the zero-mean-fluctuation)
+		LiBlobEm = Li2p1.copy()				 # copy Li-Matrix for BlobCount use
 
 	#define center of beam and shift for correct beam position:
 	if yvariation:
@@ -297,8 +305,7 @@ for Case in range (3):
 			shift_Block = shift
 			shift = 0									# we are in the 1D-Case, so every time the entry at shift is called in matrix, this is set to the zero entry
 
-			if NoiseTime and BlockCase:
-				
+			if NoiseTime:
 				Li2p1noise=Li2p1.copy()
 				for x_ind in range(len(x)):
 					noiLi = np.random.normal(0,np.mean(Li2p1[:,0,x_ind])/SNR,timestep)
@@ -319,19 +326,21 @@ for Case in range (3):
 				cutoff = 40000
 				fs = 660000
 				
-				smoothlen = 41
-
 				Li2p1hn = Li2p1.copy()
 				Li2p1hn2 = Li2p1.copy()
 				for x_ind in range(len(x)):		
 					Li2p1hn2[int(t_start/avt):int(t_end/avt),0,x_ind] = butter_lowpass_filtfilt(Li2p1noise[int(t_start/avt):int(t_end/avt),0,x_ind],cutoff,fs)
 					Li2p1hn[int(t_start/avt):int(t_end/avt),0,x_ind] = smooth(Li2p1noise[int(t_start/avt):int(t_end/avt),0,x_ind],window_len=smoothlen,window='hanning')
 	
+			# smoothing in x-direction for low resolution not necessary!
+			#	Li2p1xs = Li2p1.copy()
+			#	for t_ind in range(timestep):
+			#		Li2p1xs[t_ind,0,:] = smooth(Li2p1hn[t_ind,0,:],window_len=smoothlenx,window='hanning')
+		
 				# only use the new noise and smoothed data if selected
 				Li2p1=Li2p1noise.copy()
 				if SmoothTime:
-					Li2p1=Li2p1hn.copy()
-
+					Li2p1 = Li2p1hn.copy()
 
 
 		#Create zero-mean fluctuation matrix
@@ -775,15 +784,15 @@ for Case in range (3):
 								RandCount = RandCount+1	
 						up_index = int(min(PeakC))					# up index is minimum index for first time it surpasses HM
 						
-						if (up_index>5000 or low_index<1 or type(up_index)!=int or type(low_index)!=int):			# exit loop for this analysis if a proper calculation is not possible here
+						if (up_index>5000 or low_index<1):			# exit loop for this analysis if a proper calculation is not possible here
 							blub=999
-							print(blub, 'in up/low_index')
+							print('blub in up/low_index in Delx BlockCase')
 							Counterbad, blub, Delx, tau_B, Blobf,vr, rval, vdmax, vimax = write_nan(fu, shift_Block, Measurement,maxlen, NewData, Radial, WriteHeader, DenCase, EmCase, BlockCase, Counterbad, blub, t_start,t_end, x,y,Refdec_ind, shift, BlobCount, Delx, tau_B, Blobf,vr, rval, vdmax, vimax, B0, Lp, q95, Te0, Ti0, ne0, omegaCi, rhoS, endtime, LiConAvrel)
 							continue
 						
 						Delx = abs(x_inter[low_index]-x_inter[up_index])/2.	# HWHM of intensity at Delt = 0.
 						print('HWHM of standard blob (interpolated data): {0:.3f}cm'.format(Delx))
-
+						
 #					if blub==999:							# exit analysis because of bad result
 #						print(blub, 'one level deeper')
 #						break
@@ -795,14 +804,14 @@ for Case in range (3):
 								max_ind = c				# index on x-axis of maximum emission value
 
 						# find closest index to half-max-position (lower index)	
-						PeakC = [np.NaN]*100					# peak counter to determine for sure the position of half-max
+						PeakC = [None]*100					# peak counter to determine for sure the position of half-max
 						RandCount = 1
 						for d in range (max_ind):
 							if (LiConAv[NullPos_ind,d]>LiConAv_max/2 and LiConAv[NullPos_ind,d-1]<LiConAv_max/2):
 								PeakC[RandCount]=int(d)			# store index in peak counter array (in best case only one entry peakC[1]!)
 								RandCount = RandCount+1
-						if (np.nanmax(PeakC)>=0):			# go only in if there is a real value to calculate (otherwise PeakC is empty)
-							low_index = int(np.nanmax(PeakC))						# lower index is maximum for last time it surpasses HM
+						if (max(PeakC)>=0):			# go only in if there is a real value to calculate (otherwise PeakC is empty)
+							low_index = int(max(PeakC))						# lower index is maximum for last time it surpasses HM
 						else:
 							low_index=np.nan
 
@@ -818,9 +827,10 @@ for Case in range (3):
 						up_index = int(min(PeakC))					# up index is minimum index for first time it surpasses HM
 						print('low index', low_index, 'up_index', up_index)
 						
-						if (up_index>5000 or low_index<1 or type(up_index)!=int or type(low_index)!=int):			# exit loop for this analysis if a proper calculation is not possible here
+						if (up_index>5000 or low_index<1 or type(low_index)!=int):			# exit loop for this analysis if a proper calculation is not possible here
 							blub=999
-							print(blub, 'in up/low_index')
+							print('blub in up/low_index in Delx EmCase')
+						#	pdb.set_trace()
 							if not BlockCase:
 								shift_Block = 0
 							Counterbad, blub, Delx, tau_B, Blobf,vr, rval, vdmax, vimax = write_nan(fu, shift_Block, Measurement,maxlen, NewData, Radial, WriteHeader, DenCase, EmCase, BlockCase, Counterbad, blub, t_start,t_end, x,y,Refdec_ind, shift, BlobCount, Delx, tau_B, Blobf,vr, rval, vdmax, vimax, B0, Lp, q95, Te0, Ti0, ne0, omegaCi, rhoS, endtime, LiConAvrel)
@@ -861,7 +871,7 @@ for Case in range (3):
 					if max(PeakC)>=0:
 						left_index = int(max(PeakC))					# lower index is maximum for last time it surpasses HM
 					if max(PeakC)<0:
-						left_index = np.nan					# lower index is maximum for last time it surpasses HM
+						left_index = 0					# lower index is maximum for last time it surpasses HM
 
 
 					# find closest index to half-max-position (upper index)
@@ -874,9 +884,10 @@ for Case in range (3):
 							PeakC[RandCount]=int(e)			# store index in peak counter array (in best case only one entry peakC[1]!)
 							RandCount = RandCount+1	
 					right_index = int(min(PeakC))				# up index is minimum index for first time it surpasses HM
-					if (right_index>5000 or left_index==0  or type(left_index)!=int or type(right_index)!=int):
+					if (right_index>5000 or left_index==0):
 						blub==999	
-						print(blub)			# exit analysis because of bad result
+						print('blub in left/right index of tauB')			# exit analysis because of bad result
+					#	pdb.set_trace()
 						if not BlockCase:
 							shift_Block = 0
 						Counterbad, blub, Delx, tau_B, Blobf,vr, rval, vdmax, vimax = write_nan(fu, shift_Block, Measurement,maxlen, NewData, Radial, WriteHeader, DenCase, EmCase, BlockCase, Counterbad, blub, t_start,t_end, x,y,Refdec_ind, shift, BlobCount, Delx, tau_B, Blobf,vr, rval, vdmax, vimax, B0, Lp, q95, Te0, Ti0, ne0, omegaCi, rhoS, endtime, LiConAvrel)
@@ -905,11 +916,10 @@ for Case in range (3):
 					COM = [None]*len(LiConAv[:,1])		# create COM-vector with appropriate shape
 					for m in range (0,int(TWind/avt)):
 						Blubern = ndimage.measurements.center_of_mass(LiConAv[m,:])		# Provides tuple (x and y) --> Blubern is intermediate to hold tuple and not used, while COM[m] holds the index of the COM on the x-axis
-						if (Blubern<0):
-							print('There a negative index values for COM location in x[m] --> change time Window or position of detector and look into it -- something is weird!')
-						if np.isnan(Blubern[0]):
+						if np.isnan(Blubern[0] or Blubern<0):
 							blub=999
-							print(blub, 'COM')
+							print('blub in left/right_index in COM')
+					#		pdb.set_trace()
 							if not BlockCase:
 								shift_Block = 0	
 							Counterbad, blub, Delx, tau_B, Blobf,vr, rval, vdmax, vimax = write_nan(fu, shift_Block, Measurement,maxlen, NewData, Radial, WriteHeader, DenCase, EmCase, BlockCase, Counterbad, blub, t_start,t_end, x,y,Refdec_ind, shift, BlobCount, Delx, tau_B, Blobf,vr, rval, vdmax, vimax, B0, Lp, q95, Te0, Ti0, ne0, omegaCi, rhoS, endtime, LiConAvrel)
@@ -1111,12 +1121,12 @@ for Case in range (3):
 					# data is list consisting of tubles (!) with data and format specifier
 					if not BlockCase and BlobCount>=0:
 						data = [("00"+str(Measurement), ""), (t_start,".2f"), (t_end-t_start, ".2f"), (x[Refdec_ind], ".2f"), (y[shift*2],".2f"), (BlobCount, "d"), (Delx, ".3f"), (tau_B,".4f"), (Blobf,".1f"), (vr, ".1f"), (rval,".1f"), (vdmax,".1f"), (vimax,".1f"), (LiConAvrel,".2f"), (B0,".2f"), (Lp,".2f"), (q95,".2f"), (Te0,".2f"), (Ti0,".2f"), (ne0,".2e"), (omegaCi,".2e"), (rhoS,".6f"), (endtime,".2f")]
-					if not BlockCase and np.isnan(BlobCount):
-						data = [("00"+str(Measurement), ""), (t_start,".2f"), (t_end-t_start, ".2f"), (x[Refdec_ind], ".2f"), (y[shift*2],".2f"), (BlobCount, ".1f"), (Delx, ".1f"), (tau_B,".1f"), (Blobf,".1f"), (vr, ".1f"), (rval,".1f"), (vdmax,".1f"), (vimax,".1f"), (LiConAvrel,".2f"), (B0,".2f"), (Lp,".2f"), (q95,".2f"), (Te0,".2f"), (Ti0,".2f"), (ne0,".2e"), (omegaCi,".2e"), (rhoS,".6f"), (endtime,".2f")]
+		#			if not BlockCase and np.isnan(BlobCount):
+		#				data = [("00"+str(Measurement), ""), (t_start,".2f"), (t_end-t_start, ".2f"), (x[Refdec_ind], ".2f"), (y[shift*2],".2f"), (BlobCount, ".1f"), (Delx, ".1f"), (tau_B,".1f"), (Blobf,".1f"), (vr, ".1f"), (rval,".1f"), (vdmax,".1f"), (vimax,".1f"), (LiConAvrel,".2f"), (B0,".2f"), (Lp,".2f"), (q95,".2f"), (Te0,".2f"), (Ti0,".2f"), (ne0,".2e"), (omegaCi,".2e"), (rhoS,".6f"), (endtime,".2f")]
 					if BlockCase and BlobCount>=0:
 						data = [("00"+str(Measurement), ""), (t_start,".2f"), (t_end-t_start, ".2f"), (x[Refdec_ind], ".2f"), (y[shift_Block*2],".2f"), (BlobCount, "d"), (Delx, ".3f"), (tau_B,".4f"), (Blobf,".1f"), (vr, ".1f"), (rval,".1f"), (vdmax,".1f"), (vimax,".1f"), (LiConAvrel,".2f"), (B0,".2f"), (Lp,".2f"), (q95,".2f"), (Te0,".2f"), (Ti0,".2f"), (ne0,".2e"), (omegaCi,".2e"), (rhoS,".6f"), (endtime,".2f")]
-					if np.isnan(BlobCount) and BlockCase:
-						data = [("00"+str(Measurement), ""), (t_start,".2f"), (t_end-t_start, ".2f"), (x[Refdec_ind], ".2f"), (y[shift_Block*2],".2f"), (BlobCount, ".1f"), (Delx, ".1f"), (tau_B,".1f"), (Blobf,".1f"), (vr, ".1f"), (rval,".1f"), (vdmax,".1f"), (vimax,".1f"), (LiConAvrel,".2f"), (B0,".2f"), (Lp,".2f"), (q95,".2f"), (Te0,".2f"), (Ti0,".2f"), (ne0,".2e"), (omegaCi,".2e"), (rhoS,".6f"), (endtime,".2f")]
+		#			if np.isnan(BlobCount) and BlockCase:
+		#				data = [("00"+str(Measurement), ""), (t_start,".2f"), (t_end-t_start, ".2f"), (x[Refdec_ind], ".2f"), (y[shift_Block*2],".2f"), (BlobCount, ".1f"), (Delx, ".1f"), (tau_B,".1f"), (Blobf,".1f"), (vr, ".1f"), (rval,".1f"), (vdmax,".1f"), (vimax,".1f"), (LiConAvrel,".2f"), (B0,".2f"), (Lp,".2f"), (q95,".2f"), (Te0,".2f"), (Ti0,".2f"), (ne0,".2e"), (omegaCi,".2e"), (rhoS,".6f"), (endtime,".2f")]
 
 					myrow="{0:%a_%d/%m/%Y_%H:%M:%S}".format(datetime.now())		# initialize format for data output (first entry is going to be the date and time)
 					i=0
