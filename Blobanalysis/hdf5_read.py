@@ -2,6 +2,7 @@
 import h5py
 import numpy as np
 import matplotlib.pyplot as plt
+from pylab import plot
 import pdb
 
 def Li_read_hdf5(fileName):
@@ -29,25 +30,6 @@ def Li_read_hdf5(fileName):
 	LCF    = LCF_ind*param.attrs['dx']*rhoS*100		# read in LCF, convert it to cm
 
 
-	# Read density field as array
-#	dens = file['data/var2d/Density']
-#	density = np.empty(dens.shape)
-#	dens.read_direct(density)
-#	density *= n0
-
-	# Read electron temperature field as array
-#	electTemp = file['data/var2d/Temperature']
-#	electronTemperature = np.empty(electTemp.shape)
-#	electTemp.read_direct(electronTemperature)
-#	electronTemperature *= T0
-
-	# Read ion temperature field as array
-#	ionTemp = file['data/var2d/Ion_temp']
-#	ionTemperature = np.empty(ionTemp.shape)
-#	ionTemp.read_direct(ionTemperature)
-#	ionTemperature *= T0
-
-
 #	Read original x-axis for conversion
 	BeamAxShape= file['data/var2d/grid/x']
 	x2 = np.empty(BeamAxShape.shape)
@@ -58,37 +40,45 @@ def Li_read_hdf5(fileName):
 	x = np.empty(BeamAxisShape.shape)
 	BeamAxisShape.read_direct(x)
 	NewAxisShape= file['data/Li-Profiles/Li_beam_coordinate_X']			# create a new axis with old shape, to convert to LCF-dimension
-	xaxis = np.empty(NewAxisShape.shape)
-	NewAxisShape.read_direct(xaxis)
+	xaxis2 = np.empty(NewAxisShape.shape)
+	NewAxisShape.read_direct(xaxis2)
 	yAxisShape= file['data/Li-Profiles/Li_coordinate_Y']
 	y = np.empty(yAxisShape.shape)
 	yAxisShape.read_direct(y)
 	tAxisShape= file['data/Li-Profiles/Li_time']
 	t = np.empty(tAxisShape.shape)
 	tAxisShape.read_direct(t)
-	  
+	
 	#Convert t-axis to axis in ms:
 	time=t/omegaCi*1000
 
 	# Read Li density field as array
 	#Shape of LiDensity: (time, beam-x-axis, y-axis)
 	LiDensityShape = file['data/Li-Profiles/Li_2D_density']
-	LiDensity = np.empty(LiDensityShape.shape)
-	LiDensityShape.read_direct(LiDensity)
+	LiDensity1 = np.empty(LiDensityShape.shape)
+	LiDensityShape.read_direct(LiDensity1)
 
 	# Read Li temperature field as array
 	# Shape of LiTemp: (time, beam-x-axis, y-axis)
 	LiTempShape = file['data/Li-Profiles/Li_2D_temperature']
-	LiTemp = np.empty(LiTempShape.shape)
-	LiTempShape.read_direct(LiTemp)
+	LiTemp1 = np.empty(LiTempShape.shape)
+	LiTempShape.read_direct(LiTemp1)
 
 	# Read Li density field as array
 	# Shape of LiDensity: (time, beam-x-axis, y-axis)
 	Li2pShape = file['data/Li-Profiles/Li_2D_Li2p']
-	Li2p = np.empty(Li2pShape.shape)
-	Li2pShape.read_direct(Li2p)
+	Li2p1 = np.empty(Li2pShape.shape)
+	Li2pShape.read_direct(Li2p1)
 
-	#Convert Li-x-Axis to axis with LCF as zero-position
+	# sometimes SIMULA provides the last value of x, and the matrices to be zero or some other funny value... Therefore strip the last value!
+	if (x[-1]<x[-2] or Li2p[1,1,-1]==0):
+		x = np.delete(x,(-1),axis=0)
+		xaxis = np.delete(xaxis2,(-1),axis=0)
+		Li2p = np.delete(Li2p1,(-1),axis=2)
+		LiTemp = np.delete(LiTemp1,(-1),axis=2)
+		LiDensity = np.delete(LiDensity1,(-1),axis=2)
+
+	#Convert Li-x-Axis to axis with LCF as zero-position --> here defined, where maximum slope exists
 	slope_dens=[None]*(len(x)-1)
 	slope_dens=np.array(slope_dens)						# convert list to array
 	slope_dens[0]=0
@@ -101,7 +91,7 @@ def Li_read_hdf5(fileName):
 			 slope_ind = q
 
 	LCF_dens_max = xaxis[slope_ind]
-
+	pdb.set_trace()
 	#x2[0] corresponds to xaxis[-1] and xaxis[0] corresponds to x2[0]+xaxis[-1]
 #	LCF_x2pos=x2[-1,-1]-x2[LCF_ind,LCF_ind]			# distance of LCF from the zero point of x[2
 	for m in range (0, len(x)):
