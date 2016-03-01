@@ -58,10 +58,10 @@ import resource
 
 # Select cases and switches ###################################################################################################
 
-# Evaluates the 'infinite' resolved beam emission, the density evaluation or the Block evaluation case
+# Evaluates the 'infinite' fresolved beam emission, the density evaluation or the Block evaluation case
 
-Measurement=4				# select number of measurment to treat (is used for hdf-selection etc)
-storepref = '_veltwind_TEST'				# specify fileextension to be read in and to be stored (e.g '_dens_test', if file is called '004Emresults_dens_test')
+Measurement=108				# select number of measurment to treat (is used for hdf-selection etc)
+storepref = '_veltwind'				# specify fileextension to be read in and to be stored (e.g '_dens_test', if file is called '004Emresults_dens_test')
 
 
 # Case Loop
@@ -87,10 +87,13 @@ for Case in range (3):
 	Noise = False				# switch on additive white Gaussian noise --> Very time consuming!
 
 	Smooth = False				# smoothing noisy data afterwards
-
-	NoiseTime = True		# puts  noise on time signal
+	if not DenCase:
+		NoiseTime = True		# puts  noise on time signal
 	
-	SmoothTime = True		# smoothes time-signal
+		SmoothTime = True		# smoothes time-signal
+	if DenCase:
+		NoiseTime = False
+		SmoothTime = False
 
 	yvariation = True		# Calculate more values for y-variation
 	
@@ -111,6 +114,8 @@ for Case in range (3):
 		storename = storepref+'_TIME_SNR{0:03d}'.format(int(SNR*100))			# change file extension as needed!
 	if SmoothTime:
 		storename = storepref+'_TIME_SNR{0:03d}'.format(int(SNR*100))+'_Smooth'			# change file extension as needed!
+	if not NoiseTime and not Noise:
+		storename = storepref
 
 
 	if Radial:	
@@ -170,8 +175,8 @@ for Case in range (3):
 	print('Data is going to be read from file: /hesel/data/ASDEX.{0:03d}.h5'.format(Measurement))
 
 	# read in data from function Li_read_hdf5: Specify correct hdf5-file
-	time, x, y, ne, LiTemp, Li2p1, B0, Lp, q95, Te0, Ti0, ne0, omegaCi, rhoS, endtime = Li_read_hdf5('/pfs/home/bschiess/public/hesel/data/ASDEX.{0:03d}.h5'.format(Measurement))
-#	time, x, y, ne, LiTemp, Li2p1, B0, Lp, q95, Te0, Ti0, ne0, omegaCi, rhoS, endtime = Li_read_hdf5('/pfs/home/bschiess/itmwork/hesel_data/ASDEX.{0:03d}.h5'.format(Measurement))
+#	time, x, y, ne, LiTemp, Li2p1, B0, Lp, q95, Te0, Ti0, ne0, omegaCi, rhoS, endtime = Li_read_hdf5('/pfs/home/bschiess/public/hesel/data/ASDEX.{0:03d}.h5'.format(Measurement))
+	time, x, y, ne, LiTemp, Li2p1, B0, Lp, q95, Te0, Ti0, ne0, omegaCi, rhoS, endtime = Li_read_hdf5('/pfs/home/bschiess/itmwork/hesel_data/ASDEX.{0:03d}.h5'.format(Measurement))
 
 
 	# other settings and preparations  #############################################################################################
@@ -197,7 +202,7 @@ for Case in range (3):
 	
 	if Noise:
 		for x_ind in range(mn):
-			for y_ind in range(stepsize):				# + 2 safty distance
+			for y_ind in range(stepsize):				
 				noiLi = np.random.normal(0,np.mean(Li2p1[:,y_ind,x_ind])/SNR,timestep)
 				for t_ind in range(timestep):
 					Li2p1[t_ind,y_ind,x_ind] = Li2p1[t_ind,y_ind,x_ind]+noiLi[t_ind]
@@ -388,7 +393,7 @@ for Case in range (3):
 				Resolution = 1
 				
 			if not BlockCase:
-				Startrange = int(1.5/0.02)
+				Startrange = SetStartrange
 				Resolution = SetResolution
 			for Refdec_ind in range(Startrange, len(x),Resolution):			# Wall-region can be neglected (approximately 1.5-2cm) --> go through Refdec-Positions
 
@@ -760,7 +765,7 @@ for Case in range (3):
 						for c in range (0,len(x_inter)):
 							if (LiConAv_max==LiConAv_smooth_Null[c]):
 								max_ind = c				# index on x-axis of maximum emission value
-
+								
 						# find closest index to half-max-position (lower index)	
 						PeakC = [None]*100					# peak counter to determine for sure the position of half-max
 						RandCount = 1
@@ -771,7 +776,7 @@ for Case in range (3):
 						if max(PeakC)>=0:
 							low_index = int(max(PeakC))					# lower index is maximum for last time it surpasses HM
 						if max(PeakC)<0:
-							low_index = np.nan
+							low_index = np.nan 
 
 						# find closest index to half-max-position (upper index)
 						PeakC = [None]*100					# peak counter array to determine for sure the position of half-max
@@ -784,7 +789,7 @@ for Case in range (3):
 								RandCount = RandCount+1	
 						up_index = int(min(PeakC))					# up index is minimum index for first time it surpasses HM
 						
-						if (up_index>5000 or low_index<1):			# exit loop for this analysis if a proper calculation is not possible here
+						if (up_index>5000 or type(low_index)!=int or type(up_index)!=int):			# exit loop for this analysis if a proper calculation is not possible here
 							blub=999
 							print('blub in up/low_index in Delx BlockCase')
 							Counterbad, blub, Delx, tau_B, Blobf,vr, rval, vdmax, vimax = write_nan(fu, shift_Block, Measurement,maxlen, NewData, Radial, WriteHeader, DenCase, EmCase, BlockCase, Counterbad, blub, t_start,t_end, x,y,Refdec_ind, shift, BlobCount, Delx, tau_B, Blobf,vr, rval, vdmax, vimax, B0, Lp, q95, Te0, Ti0, ne0, omegaCi, rhoS, endtime, LiConAvrel)

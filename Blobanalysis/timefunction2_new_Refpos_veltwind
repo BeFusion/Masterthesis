@@ -94,15 +94,17 @@ if NoiseTime and SmoothTime:
 	storename = storepref+'_TIME_SNR{0:03d}_Smooth'.format(int(SNR*100))			# change file extension as needed!
 if NoiseTime and not SmoothTime:
 	storename = storepref+'_TIME_SNR{0:03d}'.format(int(SNR*1000))			# change file extension as needed!
+if not NoiseTime:
+	storename = storepref
 
 # read in data from hdf5-file via external function
 
-Measurement=4						# will be used for file search and in output
+Measurement=108						# will be used for file search and in output
 print('Data is going to be read from file: ASDEX.{0:03d}.h5'.format(Measurement))
 
 # read in data from function Li_read_hdf5: Specify correct hdf5-file
-time, x, y, ne, LiTemp, Li2p1, B0, Lp, q95, Te0, Ti0, ne0, omegaCi, rhoS, endtime = Li_read_hdf5('/pfs/home/bschiess/public/hesel/data/ASDEX.{0:03d}.h5'.format(Measurement))
-#time, x, y, ne, LiTemp, Li2p1, B0, Lp, q95, Te0, Ti0, ne0, omegaCi, rhoS, endtime = Li_read_hdf5('/pfs/home/bschiess/itmwork/hesel_data/ASDEX.{0:03d}.h5'.format(Measurement))
+#time, x, y, ne, LiTemp, Li2p1, B0, Lp, q95, Te0, Ti0, ne0, omegaCi, rhoS, endtime = Li_read_hdf5('/pfs/home/bschiess/public/hesel/data/ASDEX.{0:03d}.h5'.format(Measurement))
+time, x, y, ne, LiTemp, Li2p1, B0, Lp, q95, Te0, Ti0, ne0, omegaCi, rhoS, endtime = Li_read_hdf5('/pfs/home/bschiess/itmwork/hesel_data/ASDEX.{0:03d}.h5'.format(Measurement))
 # other settings and preparations  #############################################################################################
 
 # selected times, which are supposed to be investigated [us]
@@ -120,6 +122,7 @@ stepsize=len(y)					# misleading name, sorry
 timestep=len(time)				# misleading name, sorry
 avy=y[stepsize-1]/stepsize			
 avt=time[timestep-1]/timestep
+
 
 #define center of beam and shift for correct beam position:
 shift=int(bcenter/y[-1]*stepsize/2)+1		# shift of beam center in order to place the center at correct position
@@ -269,7 +272,7 @@ if NoiseTime:
 	# plot to see the impact of Noise
 	f3=plt.figure(figsize=(16,16), facecolor = 'white')
 	gs = gridspec.GridSpec(3, 3)
-	gs.update(wspace=0.15,hspace=0.35)
+	gs.update(wspace=0.15,hspace=0.45)
 	ax111 = plt.subplot(gs[0,:])
 	ax222 = plt.subplot(gs[1,:])
 	ax333 = plt.subplot(gs[2,0])
@@ -464,7 +467,7 @@ gs = gridspec.GridSpec(4, 1,				# ratio of grid space (2 plots per collumn, 3 pe
                        width_ratios=[1],		# width ratios of the 3 plots per row
                        height_ratios=[1,1,1,1]		# height ratios of the 2 polots per collumn
                        )
-gs.update(wspace=0.15,hspace=0.15)
+gs.update(hspace=0.45)
 
 #define limits for plots
 xmin=0.0
@@ -945,7 +948,7 @@ if (Standardblob==True and BlobCount>0):				# only occurs if switch is on and if
                        width_ratios=[1,1],		# width ratios of the 3 plots per row
                        height_ratios=[1,1]		# height ratios of the 2 polots per collumn
                        )
-	gs.update(wspace=0.15,hspace=0.35)
+	gs.update(wspace=0.4,hspace=0.25)
 
 	# create axes with the ratios specified in gs above. ax5, ax6 are the axes for the colorbars:
 	ax21 = plt.subplot(gs[0])
