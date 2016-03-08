@@ -58,9 +58,10 @@ import pdb					# for error tracking (set_trace at right position)
 # Evaluates the 'infinite' resolved beam emission, the density evaluation or the Block evaluation case
 
 
-EmCase = True				# infinite emission case --> actually always true, since every different setting during analysis is made by if-statements with the other two cases --> can stay false
+EmCase = False				# infinite emission case --> actually always true, since every different setting during analysis is made by if-statements with the other two cases --> can stay false
 DenCase = False				# density analysis case
 BlockCase = False			# block-averaging emission case
+
 
 if (EmCase and DenCase or EmCase and BlockCase or DenCase and BlockCase):		#if you do something wrong here ;)
 	sys.exit('Accidentally set two cases for evaluation!')
@@ -68,10 +69,11 @@ if (EmCase and DenCase or EmCase and BlockCase or DenCase and BlockCase):		#if y
 
 Standardblob= True			# switch for calculations
 
-NewData = False				# Switch to write output
+NewData = False				# Switch to write output (only data for this one run! -->  usually not needed, since the data is generated in radial run)
 
 saving = True				# save images
 
+realSNR = True		# reads in SNR profile for the Block Case
 
 Noise = False			# switch on additive white Gaussian noise --> Very time consuming!
 NoiseFast = False			# Enhances speed, if needed for quicker calculation
@@ -79,6 +81,7 @@ Smooth = False			# smooth noisy data
 
 NoiseTime = True
 SmoothTime = True
+
 
 # data reading  ################################################################################################################
 
@@ -99,7 +102,7 @@ if not NoiseTime:
 
 # read in data from hdf5-file via external function
 
-Measurement=108						# will be used for file search and in output
+Measurement=004						# will be used for file search and in output
 print('Data is going to be read from file: ASDEX.{0:03d}.h5'.format(Measurement))
 
 # read in data from function Li_read_hdf5: Specify correct hdf5-file
@@ -130,6 +133,7 @@ shift2 = int(b/2/y[-1]*stepsize)		# shift*2-shift2 is now left index of beam edg
 print('Position of Beam: {0:.2f}cm'.format(y[shift*2]))
 print('Beamwidth: {0:.2f}cm'.format(y[shift2+shift2]))	
 	
+
 if Noise:
 	print('The SNR is set to: {0:.2f}'.format(SNR))
 	# plot to see the impact of Noise
@@ -138,6 +142,9 @@ if Noise:
 			width_ratios=[1],		# width ratios of the 3 plots per row
 			height_ratios=[1,1]		# height ratios of the 2 polots per collumn
 			)
+	
+	matplotlib.rcParams.update({'font.size': 16})
+
 	ax111 = plt.subplot(gs[0])
 	ax222 = plt.subplot(gs[1])
 	ax111.plot(x,Li2p1[position,shift*2,:], 'b', label = 'original data')
@@ -218,21 +225,22 @@ if Noise:
 	ax111.plot(x,Li2p1hm[position,shift*2,:],'g', label = 'Hamming')
 	ax111.plot(x,Li2p1ba[position,shift*2,:],'k', label = 'Bartlett' )
 	ax111.plot(x,Li2p1bl[position,shift*2,:],'m', label = 'Blackman')
-	ax111.legend(loc='best',fancybox = True, numpoints = 1)
+	ax111.legend(loc='best',fancybox = True, numpoints = 1, fontsize = 16)
 
 	ax222.plot(x,Li2p1hn[position,shift*2,:],'r', label = 'Hanning')
 	ax222.plot(x,Li2p1noise[position,shift*2,:],'b', label = 'Noisy data with SNR={0:.2f}'.format(SNR))
 	ax222.set_ylabel('Li$_{2p}$ emission fluctuation (a.u.)')
 	ax222.set_xlabel('beam axis $x$ (cm)')
 	ax222.set_title('beam emission spectrum with SNR={0:.2f} at {1:.2f}ms and y={2:.2f}cm'.format(SNR, point,Refdec), y = 1.03)
-	ax222.legend(loc='best',fancybox = True, numpoints = 1)
+	ax222.legend(loc='best',fancybox = True, numpoints = 1, fontsize = 16)
 	plt.tight_layout()
 	#plt.show()
 	if saving: 
 		f3.savefig('{0:03d}Noise_Fitting_SNR{1:d}'.format(Measurement,int(SNR*100)))
 
 
-
+#siz = 25
+lwid = 2.5	#linewidth of lines in plots
 # use the block-emission data for the block case:
 if BlockCase:
 	x_ori = x
@@ -242,6 +250,67 @@ if BlockCase:
 	mn = len(x)
 	shift_Block = shift
 	shift = 0									# we are in the 1D-Case, so every time the entry at shift is called in matrix, this is set to the zero entry
+
+	if NoiseTime:
+		
+		# use realistic profile for noise for BlockCase
+		if realSNR:
+			xSNR, rSNR = np.loadtxt('SNR_29302.txt', usecols = (0,1), unpack = True, skiprows=1)
+			maxSNR = max(rSNR)
+			for i in range(len(rSNR)):
+				if maxSNR == rSNR[i]:
+					xmaxSNR = xSNR[maxSNR]
+					maxSNR_ind = i 
+
+			SNR = [None]*len(x)
+			#find point with maximum emission, where also the SNR is highest
+			for t_ind in range(int(t_start/avt),int(t_end/avt)):
+				maxLi = max(Li2p1[t_ind,0,:])
+				for x_ind in range(0,len(x)):
+					if maxLi == Li2p1[t_ind,0,x_ind]:
+						xmaxLi = x[x_ind]
+						xmaxLi_ind = x_ind
+				for x_ind in range(0,len(x)):
+					SNR[x_ind] = rSNR[maxSNR_ind-xmaxLi_ind+x_ind]
+
+
+		Li2p1noise=Li2p1.copy()
+		for x_ind in range(len(x)):
+			if realSNR:
+				noiLi = np.random.normal(0,np.mean(Li2p1[:,0,x_ind])/SNR[x_ind],timestep)
+			if not realSNR:
+				noiLi = np.random.normal(0,np.mean(Li2p1[:,0,x_ind])/SNR,timestep)
+			for t_ind in range(int(t_start/avt),int(t_end/avt)):
+				Li2p1noise[t_ind,0,x_ind] = Li2p1[t_ind,0,x_ind]+noiLi[t_ind]
+
+		# smoothing possible noisy data
+		
+		def butter_lowpass(cutoff,fs,order=5):
+			nyq = 0.5*fs
+			normal_cutoff = cutoff/nyq
+			b, a = signal.butter(order, normal_cutoff, btype = 'low', analog = False)
+			return b, a
+		def butter_lowpass_filtfilt(data, cutoff, fs, order=5):
+			b, a = butter_lowpass(cutoff, fs, order = order)
+			y = signal.filtfilt(b, a, data)
+			return y
+		cutoff = 6000
+		fs = 200000
+		
+		Li2p1hn = Li2p1.copy()
+		Li2p1hn2 = Li2p1.copy()
+		for x_ind in range(len(x)):		
+			Li2p1hn2[int(t_start/avt):int(t_end/avt),0,x_ind] = butter_lowpass_filtfilt(Li2p1noise[int(t_start/avt):int(t_end/avt),0,x_ind],cutoff,fs)
+			Li2p1hn[int(t_start/avt):int(t_end/avt),0,x_ind] = smooth(Li2p1noise[int(t_start/avt):int(t_end/avt),0,x_ind],window_len=smoothlen,window='hanning')
+
+	# smoothing in x-direction for low resolution not necessary!
+	#	Li2p1xs = Li2p1.copy()
+	#	for t_ind in range(timestep):
+	#		Li2p1xs[t_ind,0,:] = smooth(Li2p1hn[t_ind,0,:],window_len=smoothlenx,window='hanning')
+
+		# only use the new noise and smoothed data if selected
+
+
 
 # Calculate index and position of Reference detector on xaxis (indices are counted backwards x[len(x)-1]<0!)
 	print('Reference detector has to be shifted to a position available for beam evaluation!')
@@ -253,7 +322,7 @@ if BlockCase:
 	print('Position along beam-axis for Reference Detector in Block-Case: {0:.2f}cm'.format(x[Refdec_ind])) # check, if Reference detector is at correct position
 	print('Position of Reference Detector set in Parameter-file: {0:.2f}cm'.format(Refdec)) # check, if Reference detector is at correct position
 	if (Refdec>x[0]):				# exit, if error with reference detector position occurs
-		sys.exit('Reference Detector outside of observable region')
+		sys.esiz = exit('Reference Detector outside of observable region')
 
 if not BlockCase:					# otherwise this position is determined later
 	countx=0
@@ -268,16 +337,25 @@ if not BlockCase:					# otherwise this position is determined later
 # noise on time signal ans smoothing
 
 if NoiseTime:
-	print('The SNR is set to: {0:.2f}'.format(SNR))
+	if not realSNR:
+		print('The SNR is set to: {0:.2f}'.format(SNR))
 	# plot to see the impact of Noise
 	f3=plt.figure(figsize=(16,16), facecolor = 'white')
-	gs = gridspec.GridSpec(3, 3)
-	gs.update(wspace=0.15,hspace=0.45)
-	ax111 = plt.subplot(gs[0,:])
-	ax222 = plt.subplot(gs[1,:])
-	ax333 = plt.subplot(gs[2,0])
-	ax444 = plt.subplot(gs[2,1])
-	ax555 = plt.subplot(gs[2,2])
+	matplotlib.rcParams.update({'font.size': 16})
+
+	if not BlockCase:
+		gs = gridspec.GridSpec(3, 3)
+		gs.update(wspace=0.15,hspace=0.45)
+		ax111 = plt.subplot(gs[0,:])
+		ax222 = plt.subplot(gs[1,:])
+		ax333 = plt.subplot(gs[2,0])
+		ax444 = plt.subplot(gs[2,1])
+		ax555 = plt.subplot(gs[2,2])
+	if BlockCase:
+		gs = gridspec.GridSpec(2, 1)
+		gs.update(wspace=0.15,hspace=0.45)
+		ax111 = plt.subplot(gs[0])
+		ax222 = plt.subplot(gs[1])
 
 	
 	ax111.plot(time[int(t_start/avt):int(t_end/avt)],Li2p1[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind],'r', label = 'original data')
@@ -295,7 +373,7 @@ if NoiseTime:
 #	for testing of smoothing use only reference position to check
 	testsmooth = False
 
-	if testsmooth == True:
+	if testsmooth == True and not BlockCase:
 		Li2p1noise= Li2p1.copy()
 		for x_ind in range(mn):	
 			noiLi = np.random.normal(0,np.mean(Li2p1[:,shift*2,x_ind])/SNR,timestep)
@@ -326,7 +404,7 @@ if NoiseTime:
 		Li2p1xs = Li2p1.copy()
 		Li2p1xs[position,shift*2,:] = smooth(Li2p1hn[position,shift*2,:],window_len=smoothlenx,window='hanning')
 		
-	if testsmooth == False:
+	if testsmooth == False and not BlockCase:
 		Li2p1noise=Li2p1.copy()
 		for x_ind in range(mn):
 			for y_ind in range(stepsize):			
@@ -372,45 +450,58 @@ if NoiseTime:
 
 	ax111.legend(loc='best',fancybox = True,numpoints=1)
 	ax222.plot(time[int(t_start/avt):int(t_end/avt)],Li2p1hn2[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind],'orange', label = 'Butterworth (5th order)')
-	ax222.plot(time[int(t_start/avt):int(t_end/avt)],Li2p1noise[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind],'r', label = 'Noisy data with SNR={0:.2f}'.format(SNR))
+	if not realSNR:
+		ax222.plot(time[int(t_start/avt):int(t_end/avt)],Li2p1noise[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind],'r', label = 'Noisy data with SNR={0:.2f}'.format(SNR))
+	if realSNR:
+		ax222.plot(time[int(t_start/avt):int(t_end/avt)],Li2p1noise[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind],'r', label = 'Noisy data with real SNR-profile'.format(SNR))
 	ax222.plot(time[int(t_start/avt):int(t_end/avt)],Li2p1hn[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind],'b', label='Hanning')
 	ax222.legend(loc='best',fancybox = True)
 	ax222.set_ylabel('Li$_{2p}$ emission (a.u.)')
 	ax222.set_xlabel('time $t$ (ms)')
 	ax222.set_xlim(0.25,time[-1])
 	ax222.set_title('Noisy and Smoothed Emission Time Seriesfor Reference Detector at {0:.2f}cm'.format(Refdec), y = 1.03)
+	if not BlockCase:
+		ax333.plot(x,Li2p1[position,shift*2,:],'r', label='original data')
+		ax333.plot(x,Li2p1xs[position,shift*2,:],'b', label = 'Hanning')
+		ax333.set_ylabel('Li$_{2p}$ emission (a.u.)')
+		ax333.set_xlabel('beam axis $x$ (cm)')	
+		ax333.set_title('beam emission spectrum with SNR={0:.2f} at {1:.2f}ms and y={2:.2f}cm for original data, noisy data and time smoothed data'.format(SNR, point,Refdec), x = 1.5, y=1.02)
+		ax333.legend(loc='best',fancybox = True, numpoints = 1)
 
-	ax333.plot(x,Li2p1[position,shift*2,:],'r', label='original data')
-	ax333.plot(x,Li2p1xs[position,shift*2,:],'b', label = 'Hanning')
-	ax333.set_ylabel('Li$_{2p}$ emission (a.u.)')
-	ax333.set_xlabel('beam axis $x$ (cm)')	
-	ax333.set_title('beam emission spectrum with SNR={0:.2f} at {1:.2f}ms and y={2:.2f}cm for original data, noisy data and time smoothed data'.format(SNR, point,Refdec), x = 1.5, y=1.02)
-	ax333.legend(loc='best',fancybox = True, numpoints = 1)
+		ax444.plot(x,Li2p1noise[position,shift*2,:],'r', label = 'Noisy data (SNR={0:.2f})'.format(SNR))
+		ax444.plot(x,Li2p1xs[position,shift*2,:],'b', label = 'Hanning')
+	#	ax444.set_ylabel('Li$_{2p}$ emission fluctuation (a.u.)')
+		ax444.set_xlabel('beam axis $x$ (cm)')
+		ax444.legend(loc='best',fancybox = True, numpoints = 1)
 
-	ax444.plot(x,Li2p1noise[position,shift*2,:],'r', label = 'Noisy data (SNR={0:.2f})'.format(SNR))
-	ax444.plot(x,Li2p1xs[position,shift*2,:],'b', label = 'Hanning')
-#	ax444.set_ylabel('Li$_{2p}$ emission fluctuation (a.u.)')
-	ax444.set_xlabel('beam axis $x$ (cm)')
-	ax444.legend(loc='best',fancybox = True, numpoints = 1)
-
-	ax555.plot(x,Li2p1hn[position,shift*2,:],'r', label = 'time smoothed data')
-	ax555.plot(x,Li2p1xs[position,shift*2,:],'b', label = 'Hanning')
-#	ax555.set_ylabel('Li$_{2p}$ emission fluctuation (a.u.)')
-	ax555.set_xlabel('beam axis $x$ (cm)')
-	ax555.legend(loc='best',fancybox = True, numpoints = 1)
+		ax555.plot(x,Li2p1hn[position,shift*2,:],'r', label = 'time smoothed data')
+		ax555.plot(x,Li2p1xs[position,shift*2,:],'b', label = 'Hanning')
+	#	ax555.set_ylabel('Li$_{2p}$ emission fluctuation (a.u.)')
+		ax555.set_xlabel('beam axis $x$ (cm)')
+		ax555.legend(loc='best',fancybox = True, numpoints = 1)
 
 
 #	plt.tight_layout()
 #	plt.show()
 #	pdb.set_trace()
 	if saving: 
-		f3.savefig('{0:03d}Noise_Fitting_TIME_SNR{1:d}'.format(Measurement,int(SNR*100)))
+		if not BlockCase:
+			f3.savefig('{0:03d}Noise_Fitting_EmData_TIME_SNR{1:d}'.format(Measurement,int(SNR*100)))
+		if BlockCase:
+			if realSNR:
+				f3.savefig('{0:03d}Noise_Fitting_Blockdata_TIME_realSNR'.format(Measurement))
+			if not realSNR:
+				f3.savefig('{0:03d}Noise_Fitting_Blockdata_TIME_SNR{1:d}'.format(Measurement,int(SNR*100)))
+			
 
-#	now use data
-	Li2p1 = Li2p1xs.copy()
-	Li2p1cop = Li2p1xs.copy()	# used for passing to detector function
-	
-
+#	now use dataS
+	if not BlockCase:
+		Li2p1 = Li2p1xs.copy()
+		Li2p1cop = Li2p1xs.copy()	# used for passing to detector function
+	if BlockCase:	
+		Li2p1=Li2p1noise.copy()
+		if SmoothTime:
+			Li2p1 = Li2p1hn.copy()
 
 
 #Create zero-mean fluctuation matrix
@@ -469,6 +560,11 @@ gs = gridspec.GridSpec(4, 1,				# ratio of grid space (2 plots per collumn, 3 pe
                        )
 gs.update(hspace=0.45)
 
+
+if not Noise or NoiseTime:#
+	matplotlib.rcParams.update({'font.size': 16})
+
+
 #define limits for plots
 xmin=0.0
 xmax=2.2
@@ -485,8 +581,6 @@ ax4 = plt.subplot(gs[3])
 # create a list in for simple modifications on all plots at the same time:
 allax=[ax1,ax2,ax3,ax4]
 
-font = {'family' :'normal', 'weight' : 'regular', 'size' : 16}
-matplotlib.rc('font', **font)
 
 # AX1: Density PLOT ############################################################################################################
 
@@ -495,8 +589,8 @@ if BlockCase:
 	density = ax1.contourf(Y,X_Ori,ne[position,:,:],300)
 if not BlockCase:
 	density = ax1.contourf(Y,X,ne[position,:,:],300)
-ax1.axvline(bcenter,color='w', linestyle='-')
-ax1.set_xlabel('axis $y$ (cm)', labelpad= -10)			# switched of, since axis in row below
+ax1.axvline(bcenter,color='w', linewidth=lwid, linestyle='-')
+ax1.set_xlabel('axis $y$ (cm)', labelpad= -3)			# switched of, since axis in row below
 ax1.set_ylabel('beam axis $x$ (cm)')
 ax1.set_title('input density $n_e$ (cm$^{-3}$) at %.3g ms' % (point), y = 1.03)
 #ax1.set_xlim(xmin,xmax)
@@ -514,9 +608,9 @@ if not DenCase:
 	if not BlockCase:
 		emission2 = ax2.contourf(Y,X,Li2p1[position,:,:],300)
 	#ax2.invert_yaxis()
-	ax2.axvline(bcenter,color='w', linestyle='-')
+	ax2.axvline(bcenter,color='w', linewidth=lwid, linestyle='-')
 	ax2.set_ylabel('beam axis $x$ (cm)')
-	ax2.set_xlabel('axis $y$ (cm)', labelpad=-10)
+	ax2.set_xlabel('axis $y$ (cm)', labelpad=-3)
 	ax2.set_title('beam emission spectrum at %.3g ms'% (point), y = 1.03)
 	#ax2.set_xlim(xmin,xmax)
 	#ax2.set_ylim(ymin,ymax)
@@ -528,9 +622,9 @@ if not DenCase:
 if DenCase:
 	emission2 = ax2.contourf(Y,X,Li2p1Z[position,:,:],300)
 	#ax2.invert_yaxis()
-	ax2.axvline(bcenter,color='w', linestyle='-')
+	ax2.axvline(bcenter,color='w', linewidth=lwid, linestyle='-')
 	ax2.set_ylabel('beam axis $x$ (cm)')
-	ax2.set_xlabel('axis $y$ (cm)', labelpad=-10)
+	ax2.set_xlabel('axis $y$ (cm)', labelpad=-3)
 	ax2.set_title('Density fluctuation at %.3g ms'% (point), y = 1.03)
 	#ax2.set_xlim(xmin,xmax)
 	#ax2.set_ylim(ymin,ymax)
@@ -547,10 +641,10 @@ if DenCase:
 # AX3: Plot of emission along beam over time ####################################################################################
 timeemission = ax3.contourf(T2,X2,Li2p1Z[int(t_start/avt):int(t_end/avt),shift*2,:],300)
 #ax3.invert_yaxis()
-ax3.axhline(x[Refdec_ind],color='w',linestyle='-')
-ax3.axvline(point,color='w', linestyle='-')
+ax3.axhline(x[Refdec_ind],color='w',linewidth=lwid, linestyle='-')
+ax3.axvline(point,color='w', linewidth=lwid, linestyle='-')
 ax3.set_ylabel('beam axis $x$ (cm)')			
-ax3.set_xlabel('time $t$ (ms)', labelpad=-10)
+ax3.set_xlabel('time $t$ (ms)', labelpad=-3)
 if not DenCase:
 	ax3.set_title('timeseries of emission fluctuation for beam position %.3g cm' % (bcenter), y = 1.03)
 if DenCase:
@@ -635,14 +729,14 @@ if not DenCase:
 	emission3 = ax4.plot(T2,Li2p1[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind])
 if DenCase:
 	emission3 = ax4.plot(T2,ne[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind])
-ax4.axhline(LiAv,color='r', linestyle='-')
-ax4.axhline(LiCon,color='g', linestyle='-')
-ax4.axvline(point,color='k', linestyle='-')
+ax4.axhline(LiAv,color='r', linewidth=lwid, linestyle='-')
+ax4.axhline(LiCon,color='g', linewidth=lwid, linestyle='-')
+ax4.axvline(point,color='k', linewidth=lwid, linestyle='-')
 if not DenCase:
 	ax4.set_ylabel('Li$_{2p}$ emission (a.u.)')
 if DenCase:
 	ax4.set_ylabel('density $n_e$ (cm$^{-3}$)')
-ax4.set_xlabel('time $t$ (ms)',labelpad=-10)
+ax4.set_xlabel('time $t$ (ms)',labelpad=-3)
 ax4.set_title('Series for Detector Position %.2g cm' % (Refdec), y = 1.03)
 ax4.set_xlim(t_start,t_end)
 #ax4.set_ylim(ymin,ymax)
@@ -968,12 +1062,12 @@ if (Standardblob==True and BlobCount>0):				# only occurs if switch is on and if
 	ax21.plot([self_TWind_inter_long[left_index],self_TWind_inter_long[right_index]],[x[Refdec_ind],x[Refdec_ind]],linewidth=3, color = 'w')
 	ax21.set_xlabel('time $\Delta$t')			
 	ax21.set_ylabel('beam axis $x$ (cm)')
-	ax21.set_title('Spectrum for standard blob', y = 1.03)
+	ax21.set_title('Spatial temporal data for standard blob', y = 1.03)
 	#time points for representatives blobs are drawn into plot
-	ax21.axvline(Delt[a_an],color='r', linestyle='--')
-	ax21.axvline(Delt[b_an],color='g', linestyle='--')
-	ax21.axvline(Delt[c_an],color='b', linestyle='--')
-	ax21.axvline(Delt[NullPos_ind], color='w', linestyle='-.')						# Null pos v-oline
+	ax21.axvline(Delt[a_an],color='r', linewidth=lwid, linestyle='--')
+	ax21.axvline(Delt[b_an],color='g', linewidth=lwid, linestyle='--')
+	ax21.axvline(Delt[c_an],color='b', linewidth=lwid, linestyle='--')
+	ax21.axvline(Delt[NullPos_ind], color='w', linewidth=lwid, linestyle='-.')						# Null pos v-oline
 	ax21.set_xlim(LookWinMin,LookWinMax)
 	# ax1.set_ylim(ymin,ymax)
 	div21 =  make_axes_locatable(ax21)
@@ -993,18 +1087,18 @@ if (Standardblob==True and BlobCount>0):				# only occurs if switch is on and if
 		I35 = ax22.plot(x_inter,LiConAv_smooth_a, color='r')
 		I36 = ax22.plot(x_inter,LiConAv_smooth_b, color='g')
 		I37 = ax22.plot(x_inter,LiConAv_smooth_c, color='b')
-		I38 = ax22.plot(x_inter,LiConAv_smooth_Null, color='k', linestyle = '-.')
+		I38 = ax22.plot(x_inter,LiConAv_smooth_Null, color='k', linewidth=lwid, linestyle = '-.')
 		ax22.plot([x_inter[up_index],x_inter[low_index]], [LiConAv_max/2,LiConAv_max/2], linewidth=3, color='k')		# FWHM
 	if not BlockCase:
 		ax22.plot([x[up_index],x[low_index]], [LiConAv_max/2,LiConAv_max/2], linewidth=3, color='k')		# FWHM
 	# Center of mass positions drawn into plot:
-	ax22.axvline(COM[a_an],color='r', linestyle='--')
-	ax22.axvline(COM[b_an],color='g', linestyle='--')
-	ax22.axvline(COM[c_an],color='b', linestyle='--')
-	ax22.set_xlabel('beam axis $x$ (cm)', labelpad= -10)			
-	ax22.set_ylabel('I(x,$\Delta$t) (a.u.)')
-	ax22.set_title('Blob representatives for dashed lined time positions in left plot', y = 1.03)
-	# ax1.set_xlim(xmin,xmax)
+	ax22.axvline(COM[a_an],color='r', linewidth=lwid, linestyle='--')
+	ax22.axvline(COM[b_an],color='g', linewidth=lwid, linestyle='--')
+	ax22.axvline(COM[c_an],color='b', linewidth=lwid, linestyle='--')
+	ax22.set_xlabel('beam axis $x$ (cm)', labelpad= -3)			
+	#ax22.set_ylabel('I(x,$\Delta$t) (a.u.)')
+	ax22.set_title('Blob representatives for left plot', y = 1.03)
+	ax22.set_ylim(0,0.035)
 	# ax1.set_ylim(ymin,ymax)
 	# div21 =  make_axes_locatable(ax21)
 	# cax21=div21.append_axes("right",size="5%",pad=0.05)
@@ -1070,8 +1164,8 @@ if (Standardblob==True and BlobCount>0):				# only occurs if switch is on and if
 
 	XC = ax23.plot(Delt,COM, color = 'k')				# plot original data
 	XC_inter = ax23.plot(TWind_inter, XC_COM_smooth, color = 'm')	# plot interpolated data
-	XC_lgr = ax23.plot(Delt[LookWinMin_ind:LookWinMax_ind],COM_lgr, 'r--') # plot regression
-	ax23.set_xlabel('time $\Delta$t', labelpad= -10)			
+	XC_lgr = ax23.plot(Delt[LookWinMin_ind:LookWinMax_ind],COM_lgr, 'r--', linewidth = lwid) # plot regression
+	ax23.set_xlabel('time $\Delta$t', labelpad= -3)			
 	ax23.set_ylabel('COM (cm)')
 	ax23.set_title('COM of Blob', y = 1.03)
 	ax23.set_xlim(LookWinMin,LookWinMax)
@@ -1092,7 +1186,7 @@ if (Standardblob==True and BlobCount>0):				# only occurs if switch is on and if
 	Em_Stan = ax24.plot(Delt_long,LiConAv_long[:,Refdec_ind], color = 'k')				# plot original data
 	Em_Stan_inter = ax24.plot(self_TWind_inter_long, LiConAv_self_smooth_long, color = 'm')	# plot interpolated data
 	ax24.plot([self_TWind_inter_long[left_index-1],self_TWind_inter_long[right_index]],[LiConAv_self_smooth_long[left_index-1],LiConAv_self_smooth_long[right_index]],linewidth=3, color = 'm')
-	ax24.set_xlabel('time $\Delta$t', labelpad= -10)			
+	ax24.set_xlabel('time $\Delta$t', labelpad= -3)			
 	ax24.set_ylabel('I(x,$\Delta$t) (a.u.)')
 	ax24.set_title('Standard blob at reference detector at %.2g cm' % (Refdec), y = 1.03)
 	ax24.set_xlim(LookWinMin_long,LookWinMax_long)
