@@ -24,6 +24,7 @@ import timeit					# for timekeeping
 from datetime import datetime			# for date and time printing in output file
 import sys					# for exiting the program if errors occur
 import pdb					# for error tracking (set_trace at right position)
+import os.path
 
 #set for error tracking:
 #pdb.set_trace()
@@ -58,10 +59,12 @@ import pdb					# for error tracking (set_trace at right position)
 # Evaluates the 'infinite' resolved beam emission, the density evaluation or the Block evaluation case
 
 
-EmCase = False				# infinite emission case --> actually always true, since every different setting during analysis is made by if-statements with the other two cases --> can stay false
+EmCase = False			# infinite emission case --> actually always true, since every different setting during analysis is made by if-statements with the other two cases --> can stay false
 DenCase = False				# density analysis case
-BlockCase = False			# block-averaging emission case
+BlockCase = True			# block-averaging emission case
+RealCase = False		# for reading in real emission data from ASDEX
 
+realSNR = False			# reads in SNR profile for the Block Case
 
 if (EmCase and DenCase or EmCase and BlockCase or DenCase and BlockCase):		#if you do something wrong here ;)
 	sys.exit('Accidentally set two cases for evaluation!')
@@ -72,15 +75,31 @@ Standardblob= True			# switch for calculations
 NewData = False				# Switch to write output (only data for this one run! -->  usually not needed, since the data is generated in radial run)
 
 saving = True				# save images
-
-realSNR = True		# reads in SNR profile for the Block Case
+if not saving:
+	print('figures are not saved!!')
 
 Noise = False			# switch on additive white Gaussian noise --> Very time consuming!
 NoiseFast = False			# Enhances speed, if needed for quicker calculation
 Smooth = False			# smooth noisy data
+NoiseTime = False
+SmoothTime = False
 
-NoiseTime = True
-SmoothTime = True
+if BlockCase:
+	realSNR = True		# reads in SNR profile for the Block Case
+	NoiseTime = True
+	SmoothTime = True
+	Noise = False			# switch on additive white Gaussian noise --> Very time consuming!
+	NoiseFast = False			# Enhances speed, if needed for quicker calculation	
+	Smooth = False			# smooth noisy data
+
+if RealCase:
+	realSNR = False			# reads in SNR profile for the Block Case
+	Noise = False			# switch on additive white Gaussian noise --> Very time consuming!
+	NoiseFast = False			# Enhances speed, if needed for quicker calculation
+	Smooth = False			# smooth noisy data
+	NoiseTime = False
+	SmoothTime = False
+
 
 
 # data reading  ################################################################################################################
@@ -92,46 +111,127 @@ if DenCase:
 	storepref = 'Den_data_veltwind'
 if BlockCase:
 	storepref = 'Block_data_veltwind'
+if RealCase:
+	storepref = 'Real_data'
+
 
 if NoiseTime and SmoothTime:
 	storename = storepref+'_TIME_SNR{0:03d}_Smooth'.format(int(SNR*100))			# change file extension as needed!
 if NoiseTime and not SmoothTime:
 	storename = storepref+'_TIME_SNR{0:03d}'.format(int(SNR*1000))			# change file extension as needed!
+if NoiseTime and realSNR:
+	storename = storepref+'_TIME_real_SNR'
 if not NoiseTime:
 	storename = storepref
 
 # read in data from hdf5-file via external function
 
-Measurement=004						# will be used for file search and in output
-print('Data is going to be read from file: ASDEX.{0:03d}.h5'.format(Measurement))
+if not RealCase:
+	Measurement=888						# will be used for file search and in output
+	print('Data is going to be read from file: ASDEX.{0:03d}.h5'.format(Measurement))
+	# read in data from function Li_read_hdf5: Specify correct hdf5-file
+	#time, x, y, ne, LiTemp, Li2p1, B0, Lp, q95, Te0, Ti0, ne0, omegaCi, rhoS, endtime = Li_read_hdf5('/pfs/home/bschiess/public/hesel/data/ASDEX.{0:03d}.h5'.format(Measurement))
+	time, x, y, ne, LiTemp, Li2p1, B0, Lp, q95, Te0, Ti0, ne0, omegaCi, rhoS, endtime = Li_read_hdf5('/pfs/home/bschiess/itmwork/hesel_data/ASDEX.{0:03d}.h5'.format(Measurement))
+	# other settings and preparations  #############################################################################################
 
-# read in data from function Li_read_hdf5: Specify correct hdf5-file
-#time, x, y, ne, LiTemp, Li2p1, B0, Lp, q95, Te0, Ti0, ne0, omegaCi, rhoS, endtime = Li_read_hdf5('/pfs/home/bschiess/public/hesel/data/ASDEX.{0:03d}.h5'.format(Measurement))
-time, x, y, ne, LiTemp, Li2p1, B0, Lp, q95, Te0, Ti0, ne0, omegaCi, rhoS, endtime = Li_read_hdf5('/pfs/home/bschiess/itmwork/hesel_data/ASDEX.{0:03d}.h5'.format(Measurement))
-# other settings and preparations  #############################################################################################
+if RealCase:
+	#shot = 29315
+	shot = 29309
+	print('Data is going to be read from file: {0:}_LiBes_signal_data.txt'.format(shot))
+	Li2p1 = np.loadtxt('/afs/ipp-garching.mpg.de/u/bschiess/Analyzetools/Li-BES GUI/{0:}_LiBes_signal_data.txt'.format(shot))
+	time = np.loadtxt('/afs/ipp-garching.mpg.de/u/bschiess/Analyzetools/Li-BES GUI/{0:}_LiBes_time_data.txt'.format(shot))
+	indizes_beam_on = np.loadtxt('/afs/ipp-garching.mpg.de/u/bschiess/Analyzetools/Li-BES GUI/{0:}_LiBes_beam_on_indizes.txt'.format(shot))
+	indizes_beam_on = indizes_beam_on.astype(int)				# convert to int
+	indizes_beam_on = np.delete(indizes_beam_on,(-1),axis=0)		# last value is wrong
 
-# selected times, which are supposed to be investigated [us]
-t_start=0.2
-t_end = time[-1]
-print('time to be investigated betweem %.3gms and %.3gms:' % (t_start, t_end))
+	Li2p1 = Li2p1.transpose() 	# for right shape, as it was used before
 
-# calculate time in [us] for snapshots:
-point=position*(time[11]-time[10])
+if not RealCase:
+	# selected times, which are supposed to be investigated [us]
+	t_start=0.2
+	t_end = time[-1]
+	print('time to be investigated betweem %.3gms and %.3gms:' % (t_start, t_end))
+
+	
+if RealCase:
+
+	# define times to analyze
+	t_start = 2.9		# starttime for the whole analysis (including standard-blob-analysis)
+	t_end = 3.3		# endtime
+	limview_s = 3.07	# for the contourplots in fig. 1
+	limview_e = 3.08	# for the contourplots in fig. 1
+	
+	if shot == 29315:
+		t_start = 2.6		# starttime for the whole analysis (including standard-blob-analysis)
+		t_end = 3.0		# endtime
+		limview_s = 2.93	# for the contourplots in fig. 1
+		limview_e = 2.94	# for the contourplots in fig. 1
+	
+
+	# start and end indizes for time array, for the phase in between 2.9 and 3.3s 
+	for i in range(len(time)):
+		if time[i]>t_start:
+			start_ind = i
+			break
+	for i in range(len(time)):
+		if time[i]>t_end:
+			end_ind = i-1
+			break
+
+
+	# start and end indizes for beam-on-phase, for the phase in between 2.9 and 3.3s 
+	for j in range(len(indizes_beam_on)):
+		if start_ind<indizes_beam_on[j]:
+			ind_b_start = j
+			break
+
+	for j in range(len(indizes_beam_on)):
+		if end_ind<indizes_beam_on[j] or j == len(indizes_beam_on)-1:
+			ind_b_end = j-1
+			break
+
+	#define the time windows, which is analyzed in the countourplots of figure one
+	for i in range(len(time)):
+		if time[i]>limview_s:
+			view_ind_s = i-1
+			break
+	for i in range(len(time)):
+		if time[i]>limview_e:
+			view_ind_e = i
+			break
+	timelimview = [None]*(view_ind_e-view_ind_s)
+	for i in range (view_ind_s,view_ind_e):
+		timelimview[i-view_ind_s] = time[i]
+
+
+	print('time to be investigated betweem %.3gs and %.3gs:' % (t_start, t_end))
+	
+	#approximated beam position:
+#       ch = np.arange(1,27)				# assumed number of channels: 26
+#        x = 0.652*(ch-1) +1.01				# equation from calibrate_functions.py
+	
+	#make a short version of x-axis:
+	ch = np.arange(1,15)				# assumed number of channels: 26
+	x = 0.652*(ch-1) +1.01				# equation from calibrate_functions.py
+if not RealCase:
+	# calculate time in [us] for snapshots:
+	point=position*(time[11]-time[10])
 
 # some lengthes used during the program:
 mn=len(x)
 x_axis = x					# just useful sometimes to avoid confusion
-stepsize=len(y)					# misleading name, sorry
 timestep=len(time)				# misleading name, sorry
-avy=y[stepsize-1]/stepsize			
-avt=time[timestep-1]/timestep
+avt=(time[timestep-1]-time[0])/timestep
 
+if not RealCase:
+	stepsize=len(y)					# misleading name, sorry
+	avy=y[stepsize-1]/stepsize	
 
-#define center of beam and shift for correct beam position:
-shift=int(bcenter/y[-1]*stepsize/2)+1		# shift of beam center in order to place the center at correct position
-shift2 = int(b/2/y[-1]*stepsize)		# shift*2-shift2 is now left index of beam edge and shift*2+shift2 the right one
-print('Position of Beam: {0:.2f}cm'.format(y[shift*2]))
-print('Beamwidth: {0:.2f}cm'.format(y[shift2+shift2]))	
+	#define center of beam and shift for correct beam position:
+	shift=int(bcenter/y[-1]*stepsize/2)+1		# shift of beam center in order to place the center at correct position
+	shift2 = int(b/2/y[-1]*stepsize)		# shift*2-shift2 is now left index of beam edge and shift*2+shift2 the right one
+	print('Position of Beam: {0:.2f}cm'.format(y[shift*2]))
+	print('Beamwidth: {0:.2f}cm'.format(y[shift2+shift2]))	
 	
 
 if Noise:
@@ -239,6 +339,8 @@ if Noise:
 		f3.savefig('{0:03d}Noise_Fitting_SNR{1:d}'.format(Measurement,int(SNR*100)))
 
 
+
+
 #siz = 25
 lwid = 2.5	#linewidth of lines in plots
 # use the block-emission data for the block case:
@@ -299,7 +401,7 @@ if BlockCase:
 		
 		Li2p1hn = Li2p1.copy()
 		Li2p1hn2 = Li2p1.copy()
-		for x_ind in range(len(x)):		
+		for x_ind in range(len(x)):	
 			Li2p1hn2[int(t_start/avt):int(t_end/avt),0,x_ind] = butter_lowpass_filtfilt(Li2p1noise[int(t_start/avt):int(t_end/avt),0,x_ind],cutoff,fs)
 			Li2p1hn[int(t_start/avt):int(t_end/avt),0,x_ind] = smooth(Li2p1noise[int(t_start/avt):int(t_end/avt),0,x_ind],window_len=smoothlen,window='hanning')
 
@@ -310,8 +412,32 @@ if BlockCase:
 
 		# only use the new noise and smoothed data if selected
 
+if RealCase:
+	# smoothing noisy real data
+	def butter_lowpass(cutoff,fs,order=5):
+		nyq = 0.5*fs
+		normal_cutoff = cutoff/nyq
+		b, a = signal.butter(order, normal_cutoff, btype = 'low', analog = False)
+		return b, a
+	def butter_lowpass_filtfilt(data, cutoff, fs, order=5):
+		b, a = butter_lowpass(cutoff, fs, order = order)
+		y = signal.filtfilt(b, a, data)
+		return y
+	cutoff = 15000
+	fs = 200000
+	
+	Li2p1hn = Li2p1.copy()
+	Li2p1hn2 = Li2p1.copy()
+	for x_ind in range(len(x)):
+		Li2p1hn2[indizes_beam_on[ind_b_start:ind_b_end],x_ind] = butter_lowpass_filtfilt(Li2p1[indizes_beam_on[ind_b_start:ind_b_end],x_ind],cutoff,fs)
+		Li2p1hn[indizes_beam_on[ind_b_start:ind_b_end],x_ind] = smooth(Li2p1[indizes_beam_on[ind_b_start:ind_b_end],x_ind],window_len=smoothlen,window='hanning')
+
+if RealCase:
+	Refdec_ind = Refdec_ind_real	# is being set in Blob_params
+	print('Position of Reference Detector: {0:.2f}cm'.format(x[Refdec_ind])) # check, if Reference detector is at correct position
 
 
+if BlockCase:
 # Calculate index and position of Reference detector on xaxis (indices are counted backwards x[len(x)-1]<0!)
 	print('Reference detector has to be shifted to a position available for beam evaluation!')
 	countx=0
@@ -324,7 +450,7 @@ if BlockCase:
 	if (Refdec>x[0]):				# exit, if error with reference detector position occurs
 		sys.esiz = exit('Reference Detector outside of observable region')
 
-if not BlockCase:					# otherwise this position is determined later
+if EmCase or DenCase:					# otherwise this position is determined later
 	countx=0
 	for g in range (0,len(x)):
 		if (x[g]<0):				# take negative values into account for correct shift
@@ -343,7 +469,7 @@ if NoiseTime:
 	f3=plt.figure(figsize=(16,16), facecolor = 'white')
 	matplotlib.rcParams.update({'font.size': 16})
 
-	if not BlockCase:
+	if EmCase or DenCase:
 		gs = gridspec.GridSpec(3, 3)
 		gs.update(wspace=0.15,hspace=0.45)
 		ax111 = plt.subplot(gs[0,:])
@@ -356,157 +482,181 @@ if NoiseTime:
 		gs.update(wspace=0.15,hspace=0.45)
 		ax111 = plt.subplot(gs[0])
 		ax222 = plt.subplot(gs[1])
+	
+	if not RealCase:
+		ax111.plot(time[int(t_start/avt):int(t_end/avt)],Li2p1[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind],'r', label = 'original data')
+		ax111.set_ylabel('Li$_{2p}$ emission (a.u.)')
+		ax111.set_xlabel('time $t$ (ms)')
+		ax111.set_title('Original and Smoothed Emission Time Series for Reference Detector at {0:.2f}cm'.format(Refdec), y = 1.03)
+		ax111.set_xlim(0.25,time[-1])
+#	for testing of smoothing use only reference position to check
+		testsmooth = False
+
+		if testsmooth == True and not BlockCase:
+			Li2p1noise= Li2p1.copy()
+			for x_ind in range(mn):	
+				noiLi = np.random.normal(0,np.mean(Li2p1[:,shift*2,x_ind])/SNR,timestep)
+				for t_ind in range(int(t_start/avt),int(t_end/avt)):
+					Li2p1noise[t_ind,shift*2,x_ind] = Li2p1[t_ind,shift*2,x_ind]+noiLi[t_ind]
+
+			# smoothing possible noisy data
+
+			def butter_lowpass(cutoff,fs,order=5):
+				nyq = 0.5*fs
+				normal_cutoff = cutoff/nyq
+				b, a = signal.butter(order, normal_cutoff, btype = 'low', analog = False)
+				return b, a
+			def butter_lowpass_filtfilt(data, cutoff, fs, order=5):
+				b, a = butter_lowpass(cutoff, fs, order = order)
+				y = signal.filtfilt(b, a, data)
+				return y
+			cutoff = 6000
+			fs = 200000
+
+			Li2p1hn = Li2p1.copy()
+			Li2p1hn2 = Li2p1.copy()
+			for x_ind in range(mn):
+				Li2p1hn2[int(t_start/avt):int(t_end/avt),shift*2,x_ind] = butter_lowpass_filtfilt(Li2p1noise[int(t_start/avt):int(t_end/avt),shift*2,x_ind],cutoff,fs)
+				Li2p1hn[int(t_start/avt):int(t_end/avt),shift*2,x_ind] = smooth(Li2p1noise[int(t_start/avt):int(t_end/avt),shift*2,x_ind],window_len=smoothlen,window='hanning')
+
+		#	smooth x-direction afterwards for Em-Case (high resolution)
+			Li2p1xs = Li2p1.copy()
+			Li2p1xs[position,shift*2,:] = smooth(Li2p1hn[position,shift*2,:],window_len=smoothlenx,window='hanning')
+			
+		if testsmooth == False and not BlockCase:
+			Li2p1noise=Li2p1.copy()
+			for x_ind in range(mn):
+				for y_ind in range(stepsize):			
+					noiLi = np.random.normal(0,np.mean(Li2p1[:,y_ind,x_ind])/SNR,timestep)
+					for t_ind in range(int(t_start/avt),int(t_end/avt)):
+						Li2p1noise[t_ind,y_ind,x_ind] = Li2p1[t_ind,y_ind,x_ind]+noiLi[t_ind]
+
+
+
+			# smoothing possible noisy data
+
+			def butter_lowpass(cutoff,fs,order=5):
+				nyq = 0.5*fs
+				normal_cutoff = cutoff/nyq
+				b, a = signal.butter(order, normal_cutoff, btype = 'low', analog = False)
+				return b, a
+			def butter_lowpass_filtfilt(data, cutoff, fs, order=5):
+				b, a = butter_lowpass(cutoff, fs, order = order)
+				y = signal.filtfilt(b, a, data)
+				return y
+			cutoff = 6000
+			fs = 200000
+
+		#	smoothlen = 51
+
+			Li2p1hn = Li2p1.copy()
+			Li2p1hn2 = Li2p1.copy()
+			for x_ind in range(mn):
+				for y_ind in range(stepsize):		
+					Li2p1hn2[int(t_start/avt):int(t_end/avt),y_ind,x_ind] = butter_lowpass_filtfilt(Li2p1noise[int(t_start/avt):int(t_end/avt),y_ind,x_ind],cutoff,fs)
+					Li2p1hn[int(t_start/avt):int(t_end/avt),y_ind,x_ind] = smooth(Li2p1noise[int(t_start/avt):int(t_end/avt),y_ind,x_ind],window_len=smoothlen,window='hanning')
+
+		#	smooth x-direction afterwards for Em-Case (high resolution)
+			Li2p1xs = Li2p1.copy()
+			for t_ind in range(timestep):
+				for y_ind in range(stepsize):
+					Li2p1xs[t_ind,y_ind,:] = smooth(Li2p1hn[t_ind,y_ind,:],window_len=smoothlenx,window='hanning')
+			
+
+	# 	create plots for smoothing
+		ax111.plot(time[int(t_start/avt):int(t_end/avt)],Li2p1hn2[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind],'orange', label='Butterworth (5th order)')
+		ax111.plot(time[int(t_start/avt):int(t_end/avt)],Li2p1hn[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind],'b', label='Hanning')
+
+		ax111.legend(loc='best',fancybox = True,numpoints=1)
+		ax222.plot(time[int(t_start/avt):int(t_end/avt)],Li2p1hn2[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind],'orange', label = 'Butterworth (5th order)')
+		if not realSNR:
+			ax222.plot(time[int(t_start/avt):int(t_end/avt)],Li2p1noise[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind],'r', label = 'Noisy data with SNR={0:.2f}'.format(SNR))
+		if realSNR:
+			ax222.plot(time[int(t_start/avt):int(t_end/avt)],Li2p1noise[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind],'r', label = 'Noisy data with real SNR-profile'.format(SNR))
+		ax222.plot(time[int(t_start/avt):int(t_end/avt)],Li2p1hn[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind],'b', label='Hanning')
+		ax222.legend(loc='best',fancybox = True)
+		ax222.set_ylabel('Li$_{2p}$ emission (a.u.)')
+		ax222.set_xlabel('time $t$ (ms)')
+		ax222.set_xlim(0.25,time[-1])
+		ax222.set_title('Noisy and Smoothed Emission Time Seriesfor Reference Detector at {0:.2f}cm'.format(Refdec), y = 1.03)
+		if not BlockCase:
+			ax333.plot(x,Li2p1[position,shift*2,:],'r', label='original data')
+			ax333.plot(x,Li2p1xs[position,shift*2,:],'b', label = 'Hanning')
+			ax333.set_ylabel('Li$_{2p}$ emission (a.u.)')
+			ax333.set_xlabel('beam axis $x$ (cm)')	
+			ax333.set_title('beam emission spectrum with SNR={0:.2f} at {1:.2f}ms and y={2:.2f}cm for original data, noisy data and time smoothed data'.format(SNR, point,Refdec), x = 1.5, y=1.02)
+			ax333.legend(loc='best',fancybox = True, numpoints = 1)
+
+			ax444.plot(x,Li2p1noise[position,shift*2,:],'r', label = 'Noisy data (SNR={0:.2f})'.format(SNR))
+			ax444.plot(x,Li2p1xs[position,shift*2,:],'b', label = 'Hanning')
+		#	ax444.set_ylabel('Li$_{2p}$ emission fluctuation (a.u.)')
+			ax444.set_xlabel('beam axis $x$ (cm)')
+			ax444.legend(loc='best',fancybox = True, numpoints = 1)
+
+			ax555.plot(x,Li2p1hn[position,shift*2,:],'r', label = 'time smoothed data')
+			ax555.plot(x,Li2p1xs[position,shift*2,:],'b', label = 'Hanning')
+		#	ax555.set_ylabel('Li$_{2p}$ emission fluctuation (a.u.)')
+			ax555.set_xlabel('beam axis $x$ (cm)')
+			ax555.legend(loc='best',fancybox = True, numpoints = 1)
 
 	
-	ax111.plot(time[int(t_start/avt):int(t_end/avt)],Li2p1[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind],'r', label = 'original data')
+if RealCase:
+	# plot to see the fitting
+	f3=plt.figure(figsize=(16,16), facecolor = 'white')
+	matplotlib.rcParams.update({'font.size': 16})
+	gs = gridspec.GridSpec(3, 1)
+	gs.update(wspace=0.15,hspace=0.45)
+	ax111 = plt.subplot(gs[0])
+	ax222 = plt.subplot(gs[1])
+	ax333 = plt.subplot(gs[2])
+
+	ax111.plot(time[indizes_beam_on],Li2p1[indizes_beam_on,Refdec_ind],'r', label = 'Real Li-signal'.format(SNR))
+	ax111.plot(time[indizes_beam_on],Li2p1hn[indizes_beam_on,Refdec_ind],'b', label='Hanning')
+	ax111.plot(time[indizes_beam_on],Li2p1hn2[indizes_beam_on,Refdec_ind],'orange', label='Butterworth')
+	ax111.legend(loc='best',fancybox = True)
 	ax111.set_ylabel('Li$_{2p}$ emission (a.u.)')
-	ax111.set_xlabel('time $t$ (ms)')
-	ax111.set_title('Original and Smoothed Emission Time Series for Reference Detector at {0:.2f}cm'.format(Refdec), y = 1.03)
-	ax111.set_xlim(0.25,time[-1])
-	'''
-#	 if only the quick smoothing analysis of the reference detector position is required 
-	noiLi = np.random.normal(0,np.mean(Li2p1[:,shift*2,Refdec_ind])/SNR,timestep)
-	for t_ind in range(int(t_start/avt),int(t_end/avt)):
-		Li2p1[t_ind,shift*2,Refdec_ind] = Li2p1[t_ind,shift2,Refdec_ind]+noiLi[t_ind]
-	Li2p1noise=Li2p1.copy()
-	'''
-#	for testing of smoothing use only reference position to check
-	testsmooth = False
+	ax111.set_xlabel('time $t$ (s)')
+	ax111.set_xlim(t_start,t_end)
+	ax111.set_title('Analyzed time series at Reference Detector at {0:.2f}cm'.format(x[Refdec_ind]), y = 1.03)
 
-	if testsmooth == True and not BlockCase:
-		Li2p1noise= Li2p1.copy()
-		for x_ind in range(mn):	
-			noiLi = np.random.normal(0,np.mean(Li2p1[:,shift*2,x_ind])/SNR,timestep)
-			for t_ind in range(int(t_start/avt),int(t_end/avt)):
-				Li2p1noise[t_ind,shift*2,x_ind] = Li2p1[t_ind,shift*2,x_ind]+noiLi[t_ind]
-
-		# smoothing possible noisy data
-
-		def butter_lowpass(cutoff,fs,order=5):
-			nyq = 0.5*fs
-			normal_cutoff = cutoff/nyq
-			b, a = signal.butter(order, normal_cutoff, btype = 'low', analog = False)
-			return b, a
-		def butter_lowpass_filtfilt(data, cutoff, fs, order=5):
-			b, a = butter_lowpass(cutoff, fs, order = order)
-			y = signal.filtfilt(b, a, data)
-			return y
-		cutoff = 6000
-		fs = 200000
-
-		Li2p1hn = Li2p1.copy()
-		Li2p1hn2 = Li2p1.copy()
-		for x_ind in range(mn):
-			Li2p1hn2[int(t_start/avt):int(t_end/avt),shift*2,x_ind] = butter_lowpass_filtfilt(Li2p1noise[int(t_start/avt):int(t_end/avt),shift*2,x_ind],cutoff,fs)
-			Li2p1hn[int(t_start/avt):int(t_end/avt),shift*2,x_ind] = smooth(Li2p1noise[int(t_start/avt):int(t_end/avt),shift*2,x_ind],window_len=smoothlen,window='hanning')
-
-	#	smooth x-direction afterwards for Em-Case (high resolution)
-		Li2p1xs = Li2p1.copy()
-		Li2p1xs[position,shift*2,:] = smooth(Li2p1hn[position,shift*2,:],window_len=smoothlenx,window='hanning')
-		
-	if testsmooth == False and not BlockCase:
-		Li2p1noise=Li2p1.copy()
-		for x_ind in range(mn):
-			for y_ind in range(stepsize):			
-				noiLi = np.random.normal(0,np.mean(Li2p1[:,y_ind,x_ind])/SNR,timestep)
-				for t_ind in range(int(t_start/avt),int(t_end/avt)):
-					Li2p1noise[t_ind,y_ind,x_ind] = Li2p1[t_ind,y_ind,x_ind]+noiLi[t_ind]
-
-
-
-		# smoothing possible noisy data
-
-		def butter_lowpass(cutoff,fs,order=5):
-			nyq = 0.5*fs
-			normal_cutoff = cutoff/nyq
-			b, a = signal.butter(order, normal_cutoff, btype = 'low', analog = False)
-			return b, a
-		def butter_lowpass_filtfilt(data, cutoff, fs, order=5):
-			b, a = butter_lowpass(cutoff, fs, order = order)
-			y = signal.filtfilt(b, a, data)
-			return y
-		cutoff = 6000
-		fs = 200000
-
-	#	smoothlen = 51
-
-		Li2p1hn = Li2p1.copy()
-		Li2p1hn2 = Li2p1.copy()
-		for x_ind in range(mn):
-			for y_ind in range(stepsize):		
-				Li2p1hn2[int(t_start/avt):int(t_end/avt),y_ind,x_ind] = butter_lowpass_filtfilt(Li2p1noise[int(t_start/avt):int(t_end/avt),y_ind,x_ind],cutoff,fs)
-				Li2p1hn[int(t_start/avt):int(t_end/avt),y_ind,x_ind] = smooth(Li2p1noise[int(t_start/avt):int(t_end/avt),y_ind,x_ind],window_len=smoothlen,window='hanning')
-
-	#	smooth x-direction afterwards for Em-Case (high resolution)
-		Li2p1xs = Li2p1.copy()
-		for t_ind in range(timestep):
-			for y_ind in range(stepsize):
-				Li2p1xs[t_ind,y_ind,:] = smooth(Li2p1hn[t_ind,y_ind,:],window_len=smoothlenx,window='hanning')
-		
-
-# 	create plots for smoothing
-	ax111.plot(time[int(t_start/avt):int(t_end/avt)],Li2p1hn2[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind],'orange', label='Butterworth (5th order)')
-	ax111.plot(time[int(t_start/avt):int(t_end/avt)],Li2p1hn[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind],'b', label='Hanning')
-
-	ax111.legend(loc='best',fancybox = True,numpoints=1)
-	ax222.plot(time[int(t_start/avt):int(t_end/avt)],Li2p1hn2[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind],'orange', label = 'Butterworth (5th order)')
-	if not realSNR:
-		ax222.plot(time[int(t_start/avt):int(t_end/avt)],Li2p1noise[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind],'r', label = 'Noisy data with SNR={0:.2f}'.format(SNR))
-	if realSNR:
-		ax222.plot(time[int(t_start/avt):int(t_end/avt)],Li2p1noise[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind],'r', label = 'Noisy data with real SNR-profile'.format(SNR))
-	ax222.plot(time[int(t_start/avt):int(t_end/avt)],Li2p1hn[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind],'b', label='Hanning')
-	ax222.legend(loc='best',fancybox = True)
+	ax222.plot(time,Li2p1[:,Refdec_ind],'r')
 	ax222.set_ylabel('Li$_{2p}$ emission (a.u.)')
-	ax222.set_xlabel('time $t$ (ms)')
-	ax222.set_xlim(0.25,time[-1])
-	ax222.set_title('Noisy and Smoothed Emission Time Seriesfor Reference Detector at {0:.2f}cm'.format(Refdec), y = 1.03)
-	if not BlockCase:
-		ax333.plot(x,Li2p1[position,shift*2,:],'r', label='original data')
-		ax333.plot(x,Li2p1xs[position,shift*2,:],'b', label = 'Hanning')
-		ax333.set_ylabel('Li$_{2p}$ emission (a.u.)')
-		ax333.set_xlabel('beam axis $x$ (cm)')	
-		ax333.set_title('beam emission spectrum with SNR={0:.2f} at {1:.2f}ms and y={2:.2f}cm for original data, noisy data and time smoothed data'.format(SNR, point,Refdec), x = 1.5, y=1.02)
-		ax333.legend(loc='best',fancybox = True, numpoints = 1)
+	ax222.set_xlabel('time $t$ (s)')
+	ax222.set_xlim(t_start,t_end)
+	ax222.set_title('Full time series {0:.2f}cm'.format(x[Refdec_ind]), y = 1.03)
 
-		ax444.plot(x,Li2p1noise[position,shift*2,:],'r', label = 'Noisy data (SNR={0:.2f})'.format(SNR))
-		ax444.plot(x,Li2p1xs[position,shift*2,:],'b', label = 'Hanning')
-	#	ax444.set_ylabel('Li$_{2p}$ emission fluctuation (a.u.)')
-		ax444.set_xlabel('beam axis $x$ (cm)')
-		ax444.legend(loc='best',fancybox = True, numpoints = 1)
+	
+	ax333.plot(time,Li2p1[:,Refdec_ind],'r')
+	ax333.plot(time[indizes_beam_on],Li2p1hn[indizes_beam_on,Refdec_ind],'b', label='Hanning')
+	ax333.plot(time[indizes_beam_on],Li2p1hn2[indizes_beam_on,Refdec_ind],'orange', label='Butterworth')
 
-		ax555.plot(x,Li2p1hn[position,shift*2,:],'r', label = 'time smoothed data')
-		ax555.plot(x,Li2p1xs[position,shift*2,:],'b', label = 'Hanning')
-	#	ax555.set_ylabel('Li$_{2p}$ emission fluctuation (a.u.)')
-		ax555.set_xlabel('beam axis $x$ (cm)')
-		ax555.legend(loc='best',fancybox = True, numpoints = 1)
-
-
-#	plt.tight_layout()
+	ax333.set_ylabel('Li$_{2p}$ emission (a.u.)')
+	ax333.set_xlabel('time $t$ (s)')
+	ax333.set_xlim(limview_s,limview_e)
+	ax333.set_title('Example beam-on phase {0:.2f}cm'.format(x[Refdec_ind]), y = 1.03)	
+	ax333.get_xaxis().get_major_formatter().set_useOffset(False)
 #	plt.show()
 #	pdb.set_trace()
-	if saving: 
-		if not BlockCase:
-			f3.savefig('{0:03d}Noise_Fitting_EmData_TIME_SNR{1:d}'.format(Measurement,int(SNR*100)))
-		if BlockCase:
-			if realSNR:
-				f3.savefig('{0:03d}Noise_Fitting_Blockdata_TIME_realSNR'.format(Measurement))
-			if not realSNR:
-				f3.savefig('{0:03d}Noise_Fitting_Blockdata_TIME_SNR{1:d}'.format(Measurement,int(SNR*100)))
+
+	if saving:
+		f3.savefig('{0}Noise_Fitting_RealCase'.format(shot))
 			
 
 #	now use dataS
-	if not BlockCase:
+	if EmCase or DenCase:
 		Li2p1 = Li2p1xs.copy()
 		Li2p1cop = Li2p1xs.copy()	# used for passing to detector function
 	if BlockCase:	
 		Li2p1=Li2p1noise.copy()
 		if SmoothTime:
 			Li2p1 = Li2p1hn.copy()
+	if RealCase:
+		Li2p1 = Li2p1hn2.copy()
 
 
 #Create zero-mean fluctuation matrix
 #neZ = ne.copy()
-if not DenCase:
+if EmCase or BlockCase:
 	Li2p1Z = Li2p1.copy()				 # copy matrix for use in calculation of Lip1Z (the zero-mean-fluctuation)
 
 	if BlockCase:					 # we are only treating the 1D-case here, since it has been averaged already in y-direction
@@ -515,16 +665,37 @@ if not DenCase:
 		mean = mean.reshape(1,mn)		 # reshape to matrix for x- and y-dimension (y-dim is 1 in this case!) 
 		for x_ind in range (0,mn):		 
 			mean[0,x_ind] = np.mean(Li2p1[:,0,x_ind])
-	if not BlockCase:
+	if EmCase or DenCase:
 		mean = [np.NaN]*stepsize*mn		# create vector for mean in correct length
 		mean = np.array(mean)			# convert to array
 		mean = mean.reshape(stepsize,mn)	# reshape to matrix for x- and y-dimension 
 		for y_ind in range (0, stepsize):	# do for loop over x-and y-positionand calculate the zero-mean-matrix (average over all timesteps)
 			for x_ind in range (0,mn):		 
-				mean[y_ind,x_ind] = np.mean(Li2p1[:,y_ind,x_ind])
-			
+				mean[y_ind,x_ind] = np.mean(Li2p1[:,y_ind,x_ind])	
+	
 	for t_ind in range (int(t_start/avt),int(t_end/avt)):
 		Li2p1Z[t_ind,:,:]=Li2p1[t_ind,:,:]-mean  # subtract mean value for every timestep (takes most of the time for the program!)
+
+if RealCase:
+		
+	#calculate the matrix only, if it has not been calculated before or changes occurred:
+	newZ = True
+	if os.path.isfile('{0:}_Li2p1Z.txt'.format(shot)) and newZ==False:
+		Li2p1Z =  np.loadtxt('{0:}_Li2p1Z.txt'.format(shot))
+	if not os.path.isfile('{0:}_Li2p1Z.txt'.format(shot)):
+		newZ = True
+	if newZ:
+		Li2p1Z = Li2p1.copy()			 # copy matrix for use in calculation of Lip1Z (the zero-mean-fluctuation)
+		mean = [np.NaN]*mn			 # create vector for mean in correct length
+		mean = np.array(mean)			 # convert to array
+		for x_ind in range (0,mn):		 
+			mean[x_ind] = np.mean(Li2p1[indizes_beam_on[ind_b_start:ind_b_end],x_ind])
+
+		for x_ind in range(len(x)):
+			for t_ind in range (start_ind,end_ind):
+				Li2p1Z[t_ind,x_ind]=Li2p1[t_ind,x_ind]-mean[x_ind]  # subtract mean value for every timestep (takes most of the time for the program!)
+		np.savetxt('{0:}_Li2p1Z.txt'.format(shot), Li2p1Z)
+
 
 if DenCase:
 	Li2p1Z = ne.copy()				 # copy matrix for use in calculation of Lip1Z (the zero-mean-fluctuation)
@@ -540,10 +711,14 @@ if DenCase:
 
 
 #Meshgrids
-X,Y=np.meshgrid(x,y)						# transform x,y-axis in matrix for contourf-plot of 2D-plots
+if not RealCase:
+	X,Y=np.meshgrid(x,y)						# transform x,y-axis in matrix for contourf-plot of 2D-plots
 if BlockCase:
 	X_Ori,Y = np.meshgrid(x_ori,y)				# only needed, if BlockCase changes x-axis
-X2,T2=np.meshgrid(x,time[int(t_start/avt):int(t_end/avt)]) 	# Meshgrid for timeplots:
+if RealCase:
+	X2,T2=np.meshgrid(x,timelimview) 	# Meshgrid for timeplots:
+if not RealCase:
+	X2,T2=np.meshgrid(x,time[int(t_start/avt):int(t_end/avt)]) 	# Meshgrid for timeplots:
 
 
 
@@ -553,65 +728,91 @@ X2,T2=np.meshgrid(x,time[int(t_start/avt):int(t_end/avt)]) 	# Meshgrid for timep
 
 
 # create fiugre with certain ratio and facecolor:
-f1=plt.figure(figsize=(16,16), facecolor = 'white')
-gs = gridspec.GridSpec(4, 1,				# ratio of grid space (2 plots per collumn, 3 per row)
-                       width_ratios=[1],		# width ratios of the 3 plots per row
-                       height_ratios=[1,1,1,1]		# height ratios of the 2 polots per collumn
-                       )
-gs.update(hspace=0.45)
+if not RealCase:
+	f1=plt.figure(figsize=(16,16), facecolor = 'white')
+	gs = gridspec.GridSpec(4, 1,				# ratio of grid space (2 plots per collumn, 3 per row)
+			width_ratios=[1],		# width ratios of the 3 plots per row
+			height_ratios=[1,1,1,1]		# height ratios of the 2 polots per collumn
+			)
+	gs.update(hspace=0.45)
 
 
-if not Noise or NoiseTime:#
+	if not Noise or NoiseTime:#
+		matplotlib.rcParams.update({'font.size': 16})
+
+
+	#define limits for plots
+	xmin=0.0
+	xmax=2.2
+	ymin=0
+	ymax=8
+
+
+	# create axes with the ratios specified in gs above. ax5, ax6 are the axes for the colorbars:
+	ax1 = plt.subplot(gs[0])
+	ax2 = plt.subplot(gs[1])
+	ax3 = plt.subplot(gs[2])
+	ax4 = plt.subplot(gs[3])
+
+	# create a list in for simple modifications on all plots at the same time:
+	allax=[ax1,ax2,ax3,ax4]
+
+if RealCase:
+	f1=plt.figure(figsize=(16,16), facecolor = 'white')
+	gs = gridspec.GridSpec(3, 1,				# ratio of grid space (2 plots per collumn, 3 per row)
+			width_ratios=[1],		# width ratios of the 3 plots per row
+			height_ratios=[1,1,1]		# height ratios of the 2 polots per collumn
+			)
+	gs.update(hspace=0.45)
 	matplotlib.rcParams.update({'font.size': 16})
+	# create axes with the ratios specified in gs above. ax5, ax6 are the axes for the colorbars:
+	ax2 = plt.subplot(gs[0])
+	ax3 = plt.subplot(gs[1])
+	ax4 = plt.subplot(gs[2])
 
+	ax2.get_xaxis().get_major_formatter().set_useOffset(False)
+	ax3.get_xaxis().get_major_formatter().set_useOffset(False)
+	ax4.get_xaxis().get_major_formatter().set_useOffset(False)
 
-#define limits for plots
-xmin=0.0
-xmax=2.2
-ymin=0
-ymax=8
+if not RealCase:
+	# AX1: Density PLOT ############################################################################################################
 
-
-# create axes with the ratios specified in gs above. ax5, ax6 are the axes for the colorbars:
-ax1 = plt.subplot(gs[0])
-ax2 = plt.subplot(gs[1])
-ax3 = plt.subplot(gs[2])
-ax4 = plt.subplot(gs[3])
-
-# create a list in for simple modifications on all plots at the same time:
-allax=[ax1,ax2,ax3,ax4]
-
-
-# AX1: Density PLOT ############################################################################################################
-
-# first subplot: density
-if BlockCase:
-	density = ax1.contourf(Y,X_Ori,ne[position,:,:],300)
-if not BlockCase:
-	density = ax1.contourf(Y,X,ne[position,:,:],300)
-ax1.axvline(bcenter,color='w', linewidth=lwid, linestyle='-')
-ax1.set_xlabel('axis $y$ (cm)', labelpad= -3)			# switched of, since axis in row below
-ax1.set_ylabel('beam axis $x$ (cm)')
-ax1.set_title('input density $n_e$ (cm$^{-3}$) at %.3g ms' % (point), y = 1.03)
-#ax1.set_xlim(xmin,xmax)
-#ax1.set_ylim(ymin,ymax)
-div1 =  make_axes_locatable(ax1)
-cax1=div1.append_axes("right",size="5%",pad=0.05)
-chbar_den = plt.colorbar(density,cax=cax1)
-chbar_den.set_label('density $n_e$ (cm$^{-3}$)')
+	# first subplot: density
+	if BlockCase:
+		density = ax1.contourf(Y,X_Ori,ne[position,:,:],300)
+	if not BlockCase:
+		density = ax1.contourf(Y,X,ne[position,:,:],300)
+	ax1.axvline(bcenter,color='w', linewidth=lwid, linestyle='-')
+	ax1.set_xlabel('axis $y$ (cm)', labelpad= -3)			# switched of, since axis in row below
+	ax1.set_ylabel('beam axis $x$ (cm)')
+	ax1.set_title('input density $n_e$ (cm$^{-3}$) at %.3g ms' % (point), y = 1.03)
+	#ax1.set_xlim(xmin,xmax)
+	#ax1.set_ylim(ymin,ymax)
+	div1 =  make_axes_locatable(ax1)
+	cax1=div1.append_axes("right",size="5%",pad=0.05)
+	chbar_den = plt.colorbar(density,cax=cax1)
+	chbar_den.set_label('density $n_e$ (cm$^{-3}$)')
 
 # AX2:emission profile #########################################################################################################
 
 if not DenCase:
 	if BlockCase:
 		emission2 = ax2.contourf(Y,X_Ori,Li2p1_beam[position,:,:],300)
-	if not BlockCase:
+	if EmCase or DenCase:
 		emission2 = ax2.contourf(Y,X,Li2p1[position,:,:],300)
-	#ax2.invert_yaxis()
-	ax2.axvline(bcenter,color='w', linewidth=lwid, linestyle='-')
+	if RealCase:
+		emission2 = ax2.contourf(T2,X2,Li2p1[view_ind_s:view_ind_e,0:14],300)
+		ax2.invert_yaxis()
+
+	if not RealCase:
+		ax2.axvline(bcenter,color='w', linewidth=lwid, linestyle='-')
+		ax2.set_xlabel('axis $y$ (cm)', labelpad=-3)
+		ax2.set_title('beam emission spectrum at %.3g ms'% (point), y = 1.03)
+	if RealCase:
+		ax2.set_xlabel('time $t$ (s)', labelpad=-3)
+		ax2.set_title('timeseries for real emission data', y = 1.03)	
+		#ax2.set_xlim(limview_s,limview_e)
 	ax2.set_ylabel('beam axis $x$ (cm)')
-	ax2.set_xlabel('axis $y$ (cm)', labelpad=-3)
-	ax2.set_title('beam emission spectrum at %.3g ms'% (point), y = 1.03)
 	#ax2.set_xlim(xmin,xmax)
 	#ax2.set_ylim(ymin,ymax)
 	div2 =  make_axes_locatable(ax2)
@@ -634,22 +835,33 @@ if DenCase:
 	cbar_emission2.set_label('Density fluctuation $\delta n_e$ (cm$^{-3}$)')
 
 
+
 #plot of emission along beam over time
 #print(np.shape(T2), np.shape(X2), np.shape(Li2p1Z))
 
 
 # AX3: Plot of emission along beam over time ####################################################################################
-timeemission = ax3.contourf(T2,X2,Li2p1Z[int(t_start/avt):int(t_end/avt),shift*2,:],300)
-#ax3.invert_yaxis()
+if not RealCase:
+	timeemission = ax3.contourf(T2,X2,Li2p1Z[int(t_start/avt):int(t_end/avt),shift*2,:],300)
+if RealCase:
+	timeemission = ax3.contourf(T2,X2,Li2p1Z[view_ind_s:view_ind_e,0:14],300)
+	ax3.invert_yaxis()
+	ax3.set_xlabel('time $t$ (s)', labelpad=-3)
 ax3.axhline(x[Refdec_ind],color='w',linewidth=lwid, linestyle='-')
-ax3.axvline(point,color='w', linewidth=lwid, linestyle='-')
+if not RealCase:
+	ax3.axvline(point,color='w', linewidth=lwid, linestyle='-')
+	ax3.set_xlabel('time $t$ (ms)', labelpad=-3)
 ax3.set_ylabel('beam axis $x$ (cm)')			
-ax3.set_xlabel('time $t$ (ms)', labelpad=-3)
-if not DenCase:
+
+if RealCase:
+	ax3.set_title('timeseries of emission fluctuation', y = 1.03)
+	ax3.set_xlim(limview_s,limview_e)
+if EmCase or BlockCase:
 	ax3.set_title('timeseries of emission fluctuation for beam position %.3g cm' % (bcenter), y = 1.03)
 if DenCase:
 	ax3.set_title('timeseries of density fluctuation for beam position %.3g cm' % (bcenter), y = 1.03)
-ax3.set_xlim(t_start,t_end)
+if  not RealCase:
+	ax3.set_xlim(t_start,t_end)
 #ax3.set_ylim(ymin,ymax)
 div3 =  make_axes_locatable(ax3)
 cax3=div3.append_axes("right",size="5%",pad=0.05)
@@ -670,15 +882,26 @@ if SmoothTime:
 # Calculations for conditional average ###########################################################################################
 
 # COMMENT: Settings for threshold etc are done in the top
-if not DenCase:
+if EmCase or BlockCase:
 	LiAv = np.mean(Li2p1[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind])		# Average of Li value
 	LiSig = np.std(Li2p1[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind])		# Standard deviation of Li value
 if DenCase:
 	LiAv = np.mean(ne[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind])			# Average of Li value
 	LiSig = np.std(ne[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind])			# Standard deviation of Li value
-LiCon = LiAv + ThresCon*LiSig									# Set condition
-TWind = TWindMult*avt							# Time window for conditional averaging [us] (Gregor's Publication: 500 us)
-TWind_long = TWindMult_long*avt						# Time window for calculation of self-correlation time tau_B
+if RealCase:
+	LiAv = np.mean(Li2p1[indizes_beam_on[ind_b_start:ind_b_end],Refdec_ind])		# Average of Li value
+	LiSig = np.std(Li2p1[indizes_beam_on[ind_b_start:ind_b_end],Refdec_ind])		# Standard deviation of Li value
+LiCon = LiAv + ThresCon*LiSig						# Set condition
+if not RealCase:
+	TWind = TWindMult*avt							# Time window for conditional averaging [us] (Gregor's Publication: 500 us)
+	TWind_long = TWindMult_long*avt						# Time window for calculation of self-correlation time tau_B
+if RealCase: 
+	TWind = 0.3								# Time window in real Case with 300us
+	avt = avt*1000
+	if int(TWind/avt) % 2 == 0:
+		TWind = TWind+avt
+	
+
 
 
 if not DenCase:
@@ -697,48 +920,79 @@ if not DenCase:
 if DenCase:
 	LiBlobEm = ne.copy()						# copy density-Matrix for BlobCount use
 
-# Change matrix to 0s and 1s (0 below, 1 above threshold) for finding the position of blob occurance
-for m in range (int(t_start/avt),int(t_end/avt)):					# go through every time point
-	if LiBlobEm[m,shift*2,Refdec_ind]<LiCon:		# go in, if emission is below threshold
-		LiBlobEm[m,shift*2,Refdec_ind]=0		# set all values to zero, if it is below the threshold
-	else:							# go in, if emission is above threshold
-		LiBlobEm[m,shift*2,Refdec_ind]=1		# set all values to 1, if it is above threshold
-	m=m+1
+if not RealCase:
+	# Change matrix to 0s and 1s (0 below, 1 above threshold) for finding the position of blob occurance
+	for m in range (int(t_start/avt),int(t_end/avt)):					# go through every time point
+		if LiBlobEm[m,shift*2,Refdec_ind]<LiCon:		# go in, if emission is below threshold
+			LiBlobEm[m,shift*2,Refdec_ind]=0		# set all values to zero, if it is below the threshold
+		else:							# go in, if emission is above threshold
+			LiBlobEm[m,shift*2,Refdec_ind]=1		# set all values to 1, if it is above threshold
+		m=m+1
 
-# Count Blobs at first time position, when threshold is passed, with condtion, that in LiBlobEm there should occur the event 0 1 1 or 0 1 0:
-BlobCount=0					# Counter counting the number of blobs
-remind=[np.NaN]*200				# index used for time window in order to not double count an index
-for m in range (int(t_start/avt),int(t_end/avt)-1):					# go through every time point
-	if LiBlobEm[m,shift*2,Refdec_ind]>0 and LiBlobEm[m+1,shift*2,Refdec_ind]>0 and LiBlobEm[m-1,shift*2,Refdec_ind]==0: # condition for counting an event as a blob (0 1 1)
-		BlobCount=BlobCount+1							# raise blob count
-		if (remind[BlobCount-1]>=m-WinBar):					# safty time intervall to not count one blob as two
-			BlobCount=BlobCount-1
-		remind[BlobCount]=m
-	if LiBlobEm[m,shift*2,Refdec_ind]>0 and LiBlobEm[m+1,shift*2,Refdec_ind]==0 and LiBlobEm[m-1,shift*2,Refdec_ind]==0:
-		BlobCount=BlobCount+1							# raise blob count
-		if (remind[BlobCount-1]>=m-WinBar):					# safty time intervall to not count one blob as two
-			BlobCount=BlobCount-1
-		remind[BlobCount]=m
+	# Count Blobs at first time position, when threshold is passed, with condtion, that in LiBlobEm there should occur the event 0 1 1 or 0 1 0:
+	BlobCount=0					# Counter counting the number of blobs
+	remind=[np.NaN]*200				# index used for time window in order to not double count an index
+	for m in range (int(t_start/avt),int(t_end/avt)-1):					# go through every time point
+		if LiBlobEm[m,shift*2,Refdec_ind]>0 and LiBlobEm[m+1,shift*2,Refdec_ind]>0 and LiBlobEm[m-1,shift*2,Refdec_ind]==0: # condition for counting an event as a blob (0 1 1)
+			BlobCount=BlobCount+1							# raise blob count
+			if (remind[BlobCount-1]>=m-WinBar):					# safty time intervall to not count one blob as two
+				BlobCount=BlobCount-1
+			remind[BlobCount]=m
+		if LiBlobEm[m,shift*2,Refdec_ind]>0 and LiBlobEm[m+1,shift*2,Refdec_ind]==0 and LiBlobEm[m-1,shift*2,Refdec_ind]==0:
+			BlobCount=BlobCount+1							# raise blob count
+			if (remind[BlobCount-1]>=m-WinBar):					# safty time intervall to not count one blob as two
+				BlobCount=BlobCount-1
+			remind[BlobCount]=m
+
+if RealCase:
+	# Change matrix to 0s and 1s (0 below, 1 above threshold) for finding the position of blob occurance
+	for m in range (start_ind,end_ind):					# go through every time point
+		if LiBlobEm[m,Refdec_ind]<LiCon:		# go in, if emission is below threshold
+			LiBlobEm[m,Refdec_ind]=0		# set all values to zero, if it is below the threshold
+		else:							# go in, if emission is above threshold
+			LiBlobEm[m,Refdec_ind]=1		# set all values to 1, if it is above threshold
+		m=m+1
+
+	# Count Blobs at first time position, when threshold is passed, with condtion, that in LiBlobEm there should occur the event 0 1 1 or 0 1 0:
+	BlobCount=0					# Counter counting the number of blobs
+	remind=[np.NaN]*1000				# index used for time window in order to not double count an index
+	for m in range (start_ind,end_ind):					# go through every time point
+		if LiBlobEm[m,Refdec_ind]>0 and LiBlobEm[m+1,Refdec_ind]>0 and LiBlobEm[m-1,Refdec_ind]==0: # condition for counting an event as a blob (0 1 1)
+			BlobCount=BlobCount+1							# raise blob count
+			if (remind[BlobCount-1]>=m-WinBar):					# safty time intervall to not count one blob as two
+				BlobCount=BlobCount-1
+			remind[BlobCount]=m
+		if LiBlobEm[m,Refdec_ind]>0 and LiBlobEm[m+1,Refdec_ind]==0 and LiBlobEm[m-1,Refdec_ind]==0:
+			BlobCount=BlobCount+1							# raise blob count
+			if (remind[BlobCount-1]>=m-WinBar):					# safty time intervall to not count one blob as two
+				BlobCount=BlobCount-1
+			remind[BlobCount]=m
 
 print('Number of Blobs in observed time period: ', BlobCount)
 
 
 # AX4: Plot of emission at Reference detector position #############################################################################
 
-if not DenCase:
+if EmCase or BlockCase:
 	emission3 = ax4.plot(T2,Li2p1[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind])
 if DenCase:
 	emission3 = ax4.plot(T2,ne[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind])
+if RealCase:
+	emission3 = ax4.plot(time[view_ind_s:view_ind_e],Li2p1[view_ind_s:view_ind_e,Refdec_ind])
 ax4.axhline(LiAv,color='r', linewidth=lwid, linestyle='-')
 ax4.axhline(LiCon,color='g', linewidth=lwid, linestyle='-')
-ax4.axvline(point,color='k', linewidth=lwid, linestyle='-')
+if not RealCase:
+	ax4.axvline(point,color='k', linewidth=lwid, linestyle='-')
 if not DenCase:
 	ax4.set_ylabel('Li$_{2p}$ emission (a.u.)')
 if DenCase:
 	ax4.set_ylabel('density $n_e$ (cm$^{-3}$)')
-ax4.set_xlabel('time $t$ (ms)',labelpad=-3)
-ax4.set_title('Series for Detector Position %.2g cm' % (Refdec), y = 1.03)
-ax4.set_xlim(t_start,t_end)
+ax4.set_xlabel('time $t$ (s)',labelpad=-3)
+ax4.set_title('Series for Detector Position %.2g cm' % (x[Refdec_ind]), y = 1.03)
+if not RealCase:
+	ax4.set_xlim(t_start,t_end)
+if RealCase:
+	ax4.set_xlim(limview_s,limview_e)
 #ax4.set_ylim(ymin,ymax)
 div4 =  make_axes_locatable(ax4)
 cax4=div4.append_axes("right",size="5%",pad=0.05)
@@ -755,10 +1009,14 @@ for xlabel_i in cax4.get_xticklabels():
 
 ##################################################################################################################################
 
+if not RealCase:
+	print('Some Dimensions to check shapes etc:')
+	print('Li2p1, time, Y,X', np.shape(Li2p1), np.shape(time), np.shape(Y), np.shape(X))
 
-print('Some Dimensions to check shapes etc:')
-print('Li2p1, time, Y,X', np.shape(Li2p1), np.shape(time), np.shape(Y), np.shape(X))
-
+# transform time to ms
+if RealCase:
+	for i in range(len(time)):
+		time[i]=time[i]*1000
 
 ###################################################################################################################################
 ########### Standard-Blob analysis (part 1) #######################################################################################
@@ -778,21 +1036,38 @@ if (Standardblob==True and BlobCount>0):				# only occurs if switch is on and if
 	print('LiConAv', np.shape(LiConAv))
 
 	# find the time-windows of every blob event and put them into a matrix ######################################################
-	remind2 = [np.NaN]*200			# reminding vector holding the indizes of blobs (maximum 200 blobs)
-	intermediatestore = np.NaN
-	for m in range (int(t_start/avt),int(t_end/avt)-1-int(TWind/avt)):					# go through every time point until one TWind before the edge --> a possible blob at the right edge-blob is not used
-		if LiBlobEm[m,shift*2,Refdec_ind]>0 and LiBlobEm[m+1,shift*2,Refdec_ind]>0 and LiBlobEm[m-1,shift*2,Refdec_ind]==0 or \
-		   LiBlobEm[m,shift*2,Refdec_ind]>0 and LiBlobEm[m+1,shift*2,Refdec_ind]==0 and LiBlobEm[m-1,shift*2,Refdec_ind]==0: # condition for counting an event as a blob (0 1 1) or (0 1 0)
-			Count2=Count2+1
-			if (remind2[Count2-1]>=m-WinBar):								# safty time intervall to not count one blob as two
-				intermediatestore = remind2[Count2-1]							# just for the entrance-condition to calculate emission time intervall
-				Count2=Count2-1
-			if not intermediatestore>=m-WinBar:								# enter only if that blob is not part of the first blob
-				for l in range (0, int(TWind/avt)):							# go through time window
-					for k in range (0, len(x)):							# go through all x-positions within time window
-						LiConBlo[Count2-1,l,k]=Li2p1Z[(m-int(TWind/avt/2)+l),int(shift*2),k]	# store emission values within time window in LiConBlo
-				print('Blob # {0} can be found at t={1:.2f}ms'.format(Count2,time[m]))
-			remind2[Count2]=m
+	if not RealCase:
+		remind2 = [np.NaN]*200			# reminding vector holding the indizes of blobs (maximum 100 blobs)
+		intermediatestore = np.NaN
+		for m in range (int(t_start/avt),int(t_end/avt)-1-int(TWind/avt)):					# go through every time point until one TWind before the edge --> a possible blob at the right edge-blob is not used
+			if LiBlobEm[m,shift*2,Refdec_ind]>0 and LiBlobEm[m+1,shift*2,Refdec_ind]>0 and LiBlobEm[m-1,shift*2,Refdec_ind]==0 or \
+			LiBlobEm[m,shift*2,Refdec_ind]>0 and LiBlobEm[m+1,shift*2,Refdec_ind]==0 and LiBlobEm[m-1,shift*2,Refdec_ind]==0: # condition for counting an event as a blob (0 1 1) or (0 1 0)
+				Count2=Count2+1
+				if (remind2[Count2-1]>=m-WinBar):								# safty time intervall to not count one blob as two
+					intermediatestore = remind2[Count2-1]							# just for the entrance-condition to calculate emission time intervall
+					Count2=Count2-1
+				if not intermediatestore>=m-WinBar:								# enter only if that blob is not part of the first blob
+					for l in range (0, int(TWind/avt)):							# go through time window
+						for k in range (0, len(x)):							# go through all x-positions within time window
+							LiConBlo[Count2-1,l,k]=Li2p1Z[(m-int(TWind/avt/2)+l),int(shift*2),k]	# store emission values within time window in LiConBlo
+					print('Blob # {0} can be found at t={1:.2f}ms'.format(Count2,time[m]))
+				remind2[Count2]=m
+	if RealCase:
+		remind2 = [np.NaN]*1000			# reminding vector holding the indizes of blobs (maximum 1000 blobs)
+		intermediatestore = np.NaN
+		for m in range (start_ind,end_ind-int(TWind/avt)):					# go through every time point until one TWind before the edge --> a possible blob at the right edge-blob is not used
+			if LiBlobEm[m,Refdec_ind]>0 and LiBlobEm[m+1,Refdec_ind]>0 and LiBlobEm[m-1,Refdec_ind]==0 or \
+			LiBlobEm[m,Refdec_ind]>0 and LiBlobEm[m+1,Refdec_ind]==0 and LiBlobEm[m-1,Refdec_ind]==0: # condition for counting an event as a blob (0 1 1) or (0 1 0)
+				Count2=Count2+1
+				if (remind2[Count2-1]>=m-WinBar):								# safty time intervall to not count one blob as two
+					intermediatestore = remind2[Count2-1]							# just for the entrance-condition to calculate emission time intervall
+					Count2=Count2-1
+				if not intermediatestore>=m-WinBar:								# enter only if that blob is not part of the first blob
+					for l in range (0, int(TWind/avt)):							# go through time window
+						for k in range (0, len(x)):							# go through all x-positions within time window
+							LiConBlo[Count2-1,l,k]=Li2p1Z[(m-int(TWind/avt/2)+l),k]	# store emission values within time window in LiConBlo
+					#print('Blob # {0} can be found at t={1:.2f}ms'.format(Count2,time[m]))
+				remind2[Count2]=m
 
 	# calculate average over all blob events --> Standard Blob in LiConAv #######################################################
 	for m in range (0,len(x)):
@@ -802,11 +1077,12 @@ if (Standardblob==True and BlobCount>0):				# only occurs if switch is on and if
 
 	Delt=[None]*int(TWind/avt)				# create emty list for standard blob time window
 
+
 	NullPos_ind = 0						# initialize to be zero (just for checking afterwards, that it is not any more
 	for m in range (0,int(TWind/avt)):			# create a vector containing the times of the time window for standard blob
 		Delt[m]=-TWind/2+avt*m
-		if (Delt[m]==0.0):
-			NullPos_ind = m				# NullPos_ind is index, used for calculating blobwidth at HWHM#
+		if (Delt[m-1]<-1*10**(-6) and Delt[m]>-1*10**(-6)):
+			NullPos_ind = m-1				# NullPos_ind is index, used for calculating blobwidth at HWHM#
 		m=m+1
 
 #	Meshgrid for plot
@@ -818,43 +1094,52 @@ if (Standardblob==True and BlobCount>0):				# only occurs if switch is on and if
 
 # 	Find emission values for standard blobs for longer time window ONLY for tau_B-calculation ###################################################################################
 
-	Count2=0							# set blobcount to zero (now count again and find window around)
-	LiConBlo_long = np.empty((BlobCount,int(TWind_long/avt),len(x)))		# Creating an empty, corectly shaped matrix for all blobs and their intensity values (later) [left time shift, right time shift, blobindex] and fill the seccond dim of the all-blob-matrix with zeros
-	LiConBlo_long.fill(0)
-	LiConAv_long = np.empty((int(TWind_long/avt), len(x)))			# array to hold values for standard blob later
-	LiConAv_long.fill(0)
 
-	# find the time-windows of every blob event and put them into a matrix ######################################################
-	remind2 = [np.NaN]*200			# reminding vector holding the indizes of blobs (maximum 200 blobs)
-	intermediatestore = np.NaN
-	for m in range (int(t_start/avt),int(t_end/avt)-1-int(TWind_long/avt)):					# go through every time point until one TWind before the edge --> a possible blob at the right edge-blob is not used
-		if LiBlobEm[m,shift*2,Refdec_ind]>0 and LiBlobEm[m+1,shift*2,Refdec_ind]>0 and LiBlobEm[m-1,shift*2,Refdec_ind]==0 or \
-		   LiBlobEm[m,shift*2,Refdec_ind]>0 and LiBlobEm[m+1,shift*2,Refdec_ind]==0 and LiBlobEm[m-1,shift*2,Refdec_ind]==0: # condition for counting an event as a blob (0 1 1) or (0 1 0)
-			Count2=Count2+1
-			if (remind2[Count2-1]>=m-WinBar):								# safty time intervall to not count one blob as two
-				intermediatestore = remind2[Count2-1]							# just for the entrance-condition to calculate emission time intervall
-				Count2=Count2-1
-			if not intermediatestore>=m-WinBar:								# enter only if that blob is not part of the first blob
-				for l in range (0, int(TWind_long/avt)):							# go through time window
-					for k in range (0, len(x)):							# go through all x-positions within time window
-						LiConBlo_long[Count2-1,l,k]=Li2p1Z[(m-int(TWind_long/avt/2)+l),int(shift*2),k]	# store emission values within time window in LiConBlo
-			remind2[Count2]=m
+	if not RealCase:
+		Count2=0							# set blobcount to zero (now count again and find window around)
+		LiConBlo_long = np.empty((BlobCount,int(TWind_long/avt),len(x)))		# Creating an empty, corectly shaped matrix for all blobs and their intensity values (later) [left time shift, right time shift, blobindex] and fill the seccond dim of the all-blob-matrix with zeros
+		LiConBlo_long.fill(0)
+		LiConAv_long = np.empty((int(TWind_long/avt), len(x)))			# array to hold values for standard blob later
+		LiConAv_long.fill(0)
 
-	# calculate average over all blob events --> Standard Blob in LiConAv #######################################################
-	for m in range (0,len(x)):
-		for l in range (0, int(TWind_long/avt)):
-			LiConAv_long[l,m] = np.mean(LiConBlo_long[:,l,m])	 # calculate the values for the standard blob and put in array
+		# find the time-windows of every blob event and put them into a matrix ######################################################
+		remind2 = [np.NaN]*200			# reminding vector holding the indizes of blobs (maximum 200 blobs)
+		intermediatestore = np.NaN
+		for m in range (int(t_start/avt),int(t_end/avt)-1-int(TWind_long/avt)):					# go through every time point until one TWind before the edge --> a possible blob at the right edge-blob is not used
+			if LiBlobEm[m,shift*2,Refdec_ind]>0 and LiBlobEm[m+1,shift*2,Refdec_ind]>0 and LiBlobEm[m-1,shift*2,Refdec_ind]==0 or \
+			LiBlobEm[m,shift*2,Refdec_ind]>0 and LiBlobEm[m+1,shift*2,Refdec_ind]==0 and LiBlobEm[m-1,shift*2,Refdec_ind]==0: # condition for counting an event as a blob (0 1 1) or (0 1 0)
+				Count2=Count2+1
+				if (remind2[Count2-1]>=m-WinBar):								# safty time intervall to not count one blob as two
+					intermediatestore = remind2[Count2-1]							# just for the entrance-condition to calculate emission time intervall
+					Count2=Count2-1
+				if not intermediatestore>=m-WinBar:								# enter only if that blob is not part of the first blob
+					for l in range (0, int(TWind_long/avt)):							# go through time window
+						for k in range (0, len(x)):							# go through all x-positions within time window
+							LiConBlo_long[Count2-1,l,k]=Li2p1Z[(m-int(TWind_long/avt/2)+l),int(shift*2),k]	# store emission values within time window in LiConBlo
+				remind2[Count2]=m
 
+		# calculate average over all blob events --> Standard Blob in LiConAv #######################################################
 
-	Delt_long=[None]*int(TWind_long/avt)				# create emty list for standard blob time window
+		for m in range (0,len(x)):
+			for l in range (0, int(TWind_long/avt)):
+				LiConAv_long[l,m] = np.mean(LiConBlo_long[:,l,m])	 # calculate the values for the standard blob and put in array
 
-	NullPos_ind_long = 0						# initialize to be zero (just for checking afterwards, that it is not any more
-	for m in range (0,int(TWind_long/avt)):			# create a vector containing the times of the time window for standard blob
-		Delt_long[m]=-TWind_long/2+avt*m
-		if (Delt_long[m]==0.0):
-			NullPos_ind_long = m				# NullPos_ind is index, used for calculating blobwidth at HWHM#
-		m=m+1
+		Delt_long=[None]*int(TWind_long/avt)				# create emty list for standard blob time window
 
+		NullPos_ind_long = 0						# initialize to be zero (just for checking afterwards, that it is not any more
+		for m in range (0,int(TWind_long/avt)):			# create a vector containing the times of the time window for standard blob
+			Delt_long[m]=-TWind_long/2+avt*m
+			if (Delt_long[m]==0.0):
+				NullPos_ind_long = m				# NullPos_ind is index, used for calculating blobwidth at HWHM#
+			m=m+1
+
+	# we do not need a long time window for the real case, but I am too lazy to remove it properly...
+	if RealCase:
+		TWind_long = TWind
+		Delt_long = Delt
+		NullPos_ind_long = NullPos_ind
+		LiConBlo_long = LiConBlo
+		LiConAv_long = LiConAv
 
 # 	Define Time Window of Standard Blob Analysis ##############################################################################
 	
@@ -871,19 +1156,33 @@ if (Standardblob==True and BlobCount>0):				# only occurs if switch is on and if
 
 
 # 	interpolate data for block-case evaluation for calculation of FWHM (correlation time)
-	if BlockCase:
-		x_inter = np.linspace(x[-1],x[0],300)
+	if RealCase:
+		a_an=a_an_real
+		b_an=b_an_real
+		c_an=c_an_real
+	if BlockCase or RealCase:
+		if x[-1]<x[0]:
+			x_inter = np.linspace(x[-1],x[0],300)				# Attenation: axis has to go from low to high values!
+		if x[-1]>x[0]:
+			x_inter = np.linspace(x[0],x[-1],300)				# Attenation: axis has to go from low to high values!
 		x_here=[np.NaN]*len(x)							# introduce new x-axis going from negative to positive values for spline interpolation
 		LiConAv_here_a = [np.NaN]*len(x)
 		LiConAv_here_b = [np.NaN]*len(x)
 		LiConAv_here_c = [np.NaN]*len(x)
 		LiConAv_here_Null = [np.NaN]*len(x)
 		for i in range(len(x)):
-			x_here[len(x)-i-1]=x[i]
-			LiConAv_here_a[len(x)-i-1] = LiConAv[a_an,i]
-			LiConAv_here_b[len(x)-i-1] = LiConAv[b_an,i]
-			LiConAv_here_c[len(x)-i-1] = LiConAv[c_an,i]
-			LiConAv_here_Null[len(x)-i-1] = LiConAv[NullPos_ind,i]
+			if x[-1]<x[0]:
+				x_here[len(x)-i-1]=x[i]					# Attenation: axis has to go from low to high values!
+				LiConAv_here_a[len(x)-i-1] = LiConAv[a_an,i]
+				LiConAv_here_b[len(x)-i-1] = LiConAv[b_an,i]
+				LiConAv_here_c[len(x)-i-1] = LiConAv[c_an,i]
+				LiConAv_here_Null[len(x)-i-1] = LiConAv[NullPos_ind,i]
+			if x[-1]>x[0]:
+				x_here[i]=x[i]					# Attenation: axis has to go from low to high values!
+				LiConAv_here_a[i] = LiConAv[a_an,i]
+				LiConAv_here_b[i] = LiConAv[b_an,i]
+				LiConAv_here_c[i] = LiConAv[c_an,i]
+				LiConAv_here_Null[i] = LiConAv[NullPos_ind,i]
 		LiConAv_smooth_a = spline(x_here,LiConAv_here_a,x_inter)
 		LiConAv_smooth_b = spline(x_here,LiConAv_here_b,x_inter)
 		LiConAv_smooth_c = spline(x_here,LiConAv_here_c,x_inter)
@@ -891,7 +1190,7 @@ if (Standardblob==True and BlobCount>0):				# only occurs if switch is on and if
 
 # 	Calculate HWHM of standard blob (more work, since curve not necessarily gausian!) ##########################################
 
-	if BlockCase:
+	if BlockCase or RealCase:
 		LiConAv_max = max(LiConAv_smooth_Null[:])		# Maximum emission value
 		for c in range (0,len(x_inter)):
 			if (LiConAv_max==LiConAv_smooth_Null[c]):
@@ -916,10 +1215,11 @@ if (Standardblob==True and BlobCount>0):				# only occurs if switch is on and if
 				PeakC[RandCount]=e			# store index in peak counter array (in best case only one entry peakC[1]!)
 				RandCount = RandCount+1	
 		up_index = int(min(PeakC))					# up index is minimum index for first time it surpasses HM
+
 		Delx = abs(x_inter[low_index]-x_inter[up_index])/2.	# HWHM of intensity at Delt = 0.
 		print('HWHM of standard blob (interpolated data): {0:.3f}cm'.format(Delx))
 
-	if not BlockCase:
+	if EmCase or DenCase:
 		LiConAv_max = max(LiConAv[NullPos_ind,:])		# Maximum emission value
 		for c in range (0,len(x)):
 			if (LiConAv_max==LiConAv[NullPos_ind,c]):
@@ -944,7 +1244,7 @@ if (Standardblob==True and BlobCount>0):				# only occurs if switch is on and if
 				PeakC[RandCount]=e			# store index in peak counter array (in best case only one entry peakC[1]!)
 				RandCount = RandCount+1	
 		up_index = int(min(PeakC))					# up index is minimum index for first time it surpasses HM
-		Delx = (x_axis[low_index]-x_axis[up_index])/2.		# HWHM of intensity at Delt = 0.
+		Delx = abs(x_axis[low_index]-x_axis[up_index])/2.		# HWHM of intensity at Delt = 0.
 		print('HWHM of standard blob: {0:.3f}cm'.format(Delx))
 
 
@@ -988,16 +1288,16 @@ if (Standardblob==True and BlobCount>0):				# only occurs if switch is on and if
 			RandCount = RandCount+1	
 	right_index = int(min(PeakC))				# up index is minimum index for first time it surpasses HM
 	if (right_index==10000 or left_index==0):
-		 sys.exit('Please change time-window, because HWHM-calculation could not take place')
+		sys.exit('Please change time-window, because tau_B-calculation could not take place')
 	tau_B = (TWind_inter_long[right_index]-TWind_inter_long[left_index])/2.	# HWHM of intensity at Delt = 0.
-	print('Self correlation time of standard blob: {0:.3f}ms'.format(tau_B))
+	print('Self correlation time of standard blob: {0:.6f}ms'.format(tau_B))
 	self_TWind_inter_long = TWind_inter_long
 	self_TWind_inter = TWind_inter
 
 
 
 #	Calculate Blobfrequency #########################################################################################################
-	Blobf = BlobCount/time[-1]*1000
+	Blobf = BlobCount/(time[-1]-time[0])*1000
 	print('The Blobfrequency is: {0:d}'.format(int(Blobf)))
 
 
@@ -1008,16 +1308,21 @@ if (Standardblob==True and BlobCount>0):				# only occurs if switch is on and if
 		for k in range (0,len(LiConAv[1,:])):
 			if (LiConAv[l,k]<0):
 				LiConAv[l,k]=0
+	
 	COM = [None]*len(LiConAv[:,1])		# create COM-vector with appropriate shape
 	for m in range (0,int(TWind/avt)):
 		Blub = ndimage.measurements.center_of_mass(LiConAv[m,:])		# Provides tuple (x and y) --> Blub is intermediate to hold tuple and not used, while COM[m] holds the index of the COM on the x-axis
 		if (Blub<0):
 			print('There a negative index values for COM location in x[m] --> change time Window or position of detector and look into it -- something is weird!')
 	#	print(Blub[0])
-		COM[m] = x[int(Blub[0])]						# use only first part of tuple
-	COM = np.array(COM)								# convert list to array
-
-
+		if m == 0:
+			startblub = int(Blub[0])
+		if x[0]>x[-1]:
+			COM[m] = x[startblub]-abs(x[int(Blub[0])]-x[int(Blub[0])+1])*(Blub[0]-startblub)		# use only first part of tuple and calculate the effective COM-Position
+		if x[0]<x[-1]:
+			COM[m] = x[startblub]+abs(x[int(Blub[0])+1]-x[int(Blub[0])])*(Blub[0]-startblub)		# use only first part of tuple and calculate the effective COM-Position
+			
+	COM = np.array(COM)								# convert list to array 
 
 
 # 	Calculation of relative fluction of intensity in spectrum or density ######################################################
@@ -1028,8 +1333,6 @@ if (Standardblob==True and BlobCount>0):				# only occurs if switch is on and if
 	print('Relative fluctuation of intensity/density for standard blob: ', LiConAvrel)
 	print('Absolute fluctuation of emission ', LiAv)
 	print('Max fluctuation of intensity/density for standard blob: ', LiConAv_maxrel)
-
-
 
 
 
@@ -1050,17 +1353,39 @@ if (Standardblob==True and BlobCount>0):				# only occurs if switch is on and if
 	ax23 = plt.subplot(gs[2])
 	ax24 = plt.subplot(gs[3])
 
+	if not RealCase:
+		#for better view in plots:
+		LookWinMin_ori	=  LookWinMin			# to provide proper view of ax21-plot
+		LookWinMax_ori	=  LookWinMax			# to provide proper view of ax21-plot
+		LookWinMin	= -0.025
+		LookWinMax	=  0.07
+		LookWinMin_speed= -0.025
+		LookWinMax_speed=  0.07
+		LookWinMin_long	= -0.08
+		LookWinMax_long	=  0.08
 
+	if RealCase:
+		#for better view in plots:
+		LookWinMin_ori	=  LookWinMin			# to provide proper view of ax21-plot
+		LookWinMax_ori	=  LookWinMax			# to provide proper view of ax21-plot
+		LookWinMin	= -0.025
+		LookWinMax	=  0.10
+		LookWinMin_speed= -0.025
+		LookWinMax_speed=  0.10
+		LookWinMin_long	= -0.1
+		LookWinMax_long	=  0.1
 
 #	AX21: Standard-Blob: representative image of radial-temporal data I(x,Deta t) ###############################################
 
 	I2 = ax21.contourf(BloT, BloX, LiConAv,300)
-	if BlockCase:
+	if BlockCase or RealCase:
 		ax21.plot([Delt[NullPos_ind],Delt[NullPos_ind]],[x_inter[up_index],x_inter[low_index]], linewidth=3, color='w')	# FWHM-plot
-	if not BlockCase:
+	if EmCase or DenCase:
 		ax21.plot([Delt[NullPos_ind],Delt[NullPos_ind]],[x[up_index],x[low_index]], linewidth=3, color='w')	# FWHM-plot
 	ax21.plot([self_TWind_inter_long[left_index],self_TWind_inter_long[right_index]],[x[Refdec_ind],x[Refdec_ind]],linewidth=3, color = 'w')
-	ax21.set_xlabel('time $\Delta$t')			
+	if RealCase:
+		ax21.invert_yaxis()
+	ax21.set_xlabel('time $\Delta$t (ms)')			
 	ax21.set_ylabel('beam axis $x$ (cm)')
 	ax21.set_title('Spatial temporal data for standard blob', y = 1.03)
 	#time points for representatives blobs are drawn into plot
@@ -1068,7 +1393,10 @@ if (Standardblob==True and BlobCount>0):				# only occurs if switch is on and if
 	ax21.axvline(Delt[b_an],color='g', linewidth=lwid, linestyle='--')
 	ax21.axvline(Delt[c_an],color='b', linewidth=lwid, linestyle='--')
 	ax21.axvline(Delt[NullPos_ind], color='w', linewidth=lwid, linestyle='-.')						# Null pos v-oline
-	ax21.set_xlim(LookWinMin,LookWinMax)
+	if not RealCase:
+		ax21.set_xlim(LookWinMin_ori,LookWinMax_ori)
+	if RealCase:
+		ax21.set_xlim(LookWinMin_long,LookWinMax_long)
 	# ax1.set_ylim(ymin,ymax)
 	div21 =  make_axes_locatable(ax21)
 	cax21=div21.append_axes("right",size="5%")
@@ -1076,20 +1404,23 @@ if (Standardblob==True and BlobCount>0):				# only occurs if switch is on and if
 	chbar_I.set_label('I(x,$\Delta$t) (a.u.)')
 
 
-
+	blobwinview_min = -0.1
+	blobwinview_max = 0.1
 
 #	AX22: Radial profiles of intensity response 
 	I31 = ax22.plot(x,LiConAv[a_an,:], color='r')
 	I32 = ax22.plot(x,LiConAv[b_an,:], color='g')
 	I33 = ax22.plot(x,LiConAv[c_an,:], color='b')
 	I34 = ax22.plot(x,LiConAv[NullPos_ind,:], color='k', linestyle ='-.')					# corresponding plot of NullPos v-line
-	if BlockCase:
+	if RealCase:
+		ax22.invert_xaxis()
+	if BlockCase or RealCase:
 		I35 = ax22.plot(x_inter,LiConAv_smooth_a, color='r')
 		I36 = ax22.plot(x_inter,LiConAv_smooth_b, color='g')
 		I37 = ax22.plot(x_inter,LiConAv_smooth_c, color='b')
 		I38 = ax22.plot(x_inter,LiConAv_smooth_Null, color='k', linewidth=lwid, linestyle = '-.')
 		ax22.plot([x_inter[up_index],x_inter[low_index]], [LiConAv_max/2,LiConAv_max/2], linewidth=3, color='k')		# FWHM
-	if not BlockCase:
+	if EmCase or DenCase:
 		ax22.plot([x[up_index],x[low_index]], [LiConAv_max/2,LiConAv_max/2], linewidth=3, color='k')		# FWHM
 	# Center of mass positions drawn into plot:
 	ax22.axvline(COM[a_an],color='r', linewidth=lwid, linestyle='--')
@@ -1098,8 +1429,10 @@ if (Standardblob==True and BlobCount>0):				# only occurs if switch is on and if
 	ax22.set_xlabel('beam axis $x$ (cm)', labelpad= -3)			
 	#ax22.set_ylabel('I(x,$\Delta$t) (a.u.)')
 	ax22.set_title('Blob representatives for left plot', y = 1.03)
-	ax22.set_ylim(0,0.035)
-	# ax1.set_ylim(ymin,ymax)
+	if EmCase or BlockCase:
+		ax22.set_ylim(0,0.035)
+	if RealCase:
+		ax22.set_ylim(0,0.35)
 	# div21 =  make_axes_locatable(ax21)
 	# cax21=div21.append_axes("right",size="5%",pad=0.05)
 	# chbar_I = plt.colorbar(LiConAv,cax=cax21)
@@ -1112,19 +1445,32 @@ if (Standardblob==True and BlobCount>0):				# only occurs if switch is on and if
 ###################################################################################################################################
 
 #	Position of Blob and speed ################################################################################################
+	
+#	calculate speed only for area, where blob really is!
+	if RealCase:
+		for i in range(len(Delt)):
+			if Delt[i]>LookWinMin:
+				LookWinMin_ind = i-1
+				break
+		for i in range(len(Delt)):
+			if Delt[i]>LookWinMax:
+				LookWinMax_ind = i-1
+				break
+
+
 
 	# calculate lienar regression statistics:
 	v_r, v_intercept, r_value, p_value, std_err = stats.linregress(Delt[LookWinMin_ind:LookWinMax_ind],COM[LookWinMin_ind:LookWinMax_ind])
-
+	
 	#create plot information of linear regression
 	(a_lgr,b_lgr) =polyfit(Delt[LookWinMin_ind:LookWinMax_ind],COM[LookWinMin_ind:LookWinMax_ind],1) 
-	COM_lgr = np.polyval([a_lgr,b_lgr],Delt[LookWinMin_ind:LookWinMax_ind])
+	COM_lgr = np.polyval([a_lgr,b_lgr],Delt[LookWinMin_ind:LookWinMax_ind+5])
 
 	# interpolate data for better calculation of slope
 	TWind_inter = np.linspace(LookWinMin,LookWinMax,300)		
 	XC_COM_smooth = spline(Delt,COM,TWind_inter)
 	
-	#calculate maximum slopes of real data and interpolated data:
+	#calculate MAXIMUM slopes of real data and interpolated data:
 	slope_data=[None]*(LookWinMax_ind-LookWinMin_ind)
 	slope_inter=[None]*(len(TWind_inter)-1)
 	slope_data=np.array(slope_data)						# convert list to array
@@ -1132,10 +1478,14 @@ if (Standardblob==True and BlobCount>0):				# only occurs if switch is on and if
 	slope_data[0]=0
 	slope_inter[0]=0
 	for q in range (LookWinMin_ind+1,LookWinMax_ind):			# Calculate slopes between every point
-		 slope_data[q] = (COM[q]-COM[q-1])/abs(Delt[q]-Delt[q-1])
-		 if (slope_data[q]<0):
-			slope_data[q]=0
-
+		if x[0]>x[-1]:
+			slope_data[q-LookWinMin_ind] = (COM[q]-COM[q-1])/abs(Delt[q]-Delt[q-1])
+			if (slope_data[q-LookWinMin_ind]<0):
+				slope_data[q-LookWinMin_ind]=0
+		if x[0]<x[-1]:
+			slope_data[q-LookWinMin_ind] = (COM[q]-COM[q-1])/abs(Delt[q]-Delt[q-1])
+			if (slope_data[q-LookWinMin_ind]<0):
+				slope_data[q-LookWinMin_ind]=0
 	v_dmax=np.amax(slope_data)						# find maximum slope of data 
 	for p in range (0,len(TWind_inter)-1):					# Calculate slopes between every point
 		slope_inter[p] = (XC_COM_smooth[p]-XC_COM_smooth[p-1])/abs(TWind_inter[p]-TWind_inter[p-1])
@@ -1145,8 +1495,12 @@ if (Standardblob==True and BlobCount>0):				# only occurs if switch is on and if
 
 
 	#convert into [m/s]
-	vr = v_r*0.01*pow(10,3)
-	rval = r_value*0.01*pow(10,3)
+	if x[0]<x[-1]:
+		vr = -v_r*0.01*pow(10,3)
+		rval = -r_value*0.01*pow(10,3)
+	if x[0]>x[-1]:
+		vr = v_r*0.01*pow(10,3)
+		rval = r_value*0.01*pow(10,3)
 	vdmax = v_dmax*0.01*pow(10,3)
 	vimax = v_imax*0.01*pow(10,3)
 
@@ -1162,10 +1516,13 @@ if (Standardblob==True and BlobCount>0):				# only occurs if switch is on and if
 	
 # 	AX23: plot different data for blob position and speed
 
+	#pdb.set_trace()
 	XC = ax23.plot(Delt,COM, color = 'k')				# plot original data
 	XC_inter = ax23.plot(TWind_inter, XC_COM_smooth, color = 'm')	# plot interpolated data
-	XC_lgr = ax23.plot(Delt[LookWinMin_ind:LookWinMax_ind],COM_lgr, 'r--', linewidth = lwid) # plot regression
-	ax23.set_xlabel('time $\Delta$t', labelpad= -3)			
+	XC_lgr = ax23.plot(Delt[LookWinMin_ind:LookWinMax_ind+5],COM_lgr, 'r--', linewidth = lwid) # plot regression
+	if RealCase:
+		ax23.invert_yaxis()
+	ax23.set_xlabel('time $\Delta$t (ms)', labelpad= -3)			
 	ax23.set_ylabel('COM (cm)')
 	ax23.set_title('COM of Blob', y = 1.03)
 	ax23.set_xlim(LookWinMin,LookWinMax)
@@ -1186,7 +1543,7 @@ if (Standardblob==True and BlobCount>0):				# only occurs if switch is on and if
 	Em_Stan = ax24.plot(Delt_long,LiConAv_long[:,Refdec_ind], color = 'k')				# plot original data
 	Em_Stan_inter = ax24.plot(self_TWind_inter_long, LiConAv_self_smooth_long, color = 'm')	# plot interpolated data
 	ax24.plot([self_TWind_inter_long[left_index-1],self_TWind_inter_long[right_index]],[LiConAv_self_smooth_long[left_index-1],LiConAv_self_smooth_long[right_index]],linewidth=3, color = 'm')
-	ax24.set_xlabel('time $\Delta$t', labelpad= -3)			
+	ax24.set_xlabel('time $\Delta$t (ms)', labelpad= -3)			
 	ax24.set_ylabel('I(x,$\Delta$t) (a.u.)')
 	ax24.set_title('Standard blob at reference detector at %.2g cm' % (Refdec), y = 1.03)
 	ax24.set_xlim(LookWinMin_long,LookWinMax_long)
@@ -1265,7 +1622,12 @@ if NewData:					# Write only, if needed
 #plt.tight_layout()
 
 if saving:
-	f1.savefig('{0:03d}Fig1_{1:}'.format(Measurement,storename))
-	f2.savefig('{0:03d}Fig2_{1:}'.format(Measurement,storename))
+	if not RealCase:
+		f1.savefig('{0:03d}Fig1_{1:}'.format(Measurement,storename))
+		f2.savefig('{0:03d}Fig2_{1:}'.format(Measurement,storename))
+	if RealCase:
+		f1.savefig('{0:}Fig1_{1:}'.format(shot,storename))
+		f2.savefig('{0:}Fig2_{1:}'.format(shot,storename))
+	
 
 plt.show()
