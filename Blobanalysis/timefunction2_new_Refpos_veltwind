@@ -59,10 +59,10 @@ import os.path
 # Evaluates the 'infinite' resolved beam emission, the density evaluation or the Block evaluation case
 
 
-EmCase = False			# infinite emission case --> actually always true, since every different setting during analysis is made by if-statements with the other two cases --> can stay false
+EmCase = True 		# infinite emission case --> actually always true, since every different setting during analysis is made by if-statements with the other two cases --> can stay false
 DenCase = False				# density analysis case
-BlockCase = True			# block-averaging emission case
-RealCase = False		# for reading in real emission data from ASDEX
+BlockCase = False			# block-averaging emission case
+RealCase = False	# for reading in real emission data from ASDEX
 
 realSNR = False			# reads in SNR profile for the Block Case
 
@@ -127,7 +127,7 @@ if not NoiseTime:
 # read in data from hdf5-file via external function
 
 if not RealCase:
-	Measurement=888						# will be used for file search and in output
+	Measurement=111						# will be used for file search and in output
 	print('Data is going to be read from file: ASDEX.{0:03d}.h5'.format(Measurement))
 	# read in data from function Li_read_hdf5: Specify correct hdf5-file
 	#time, x, y, ne, LiTemp, Li2p1, B0, Lp, q95, Te0, Ti0, ne0, omegaCi, rhoS, endtime = Li_read_hdf5('/pfs/home/bschiess/public/hesel/data/ASDEX.{0:03d}.h5'.format(Measurement))
@@ -136,7 +136,7 @@ if not RealCase:
 
 if RealCase:
 	#shot = 29315
-	shot = 29309
+	shot = 29302
 	print('Data is going to be read from file: {0:}_LiBes_signal_data.txt'.format(shot))
 	Li2p1 = np.loadtxt('/afs/ipp-garching.mpg.de/u/bschiess/Analyzetools/Li-BES GUI/{0:}_LiBes_signal_data.txt'.format(shot))
 	time = np.loadtxt('/afs/ipp-garching.mpg.de/u/bschiess/Analyzetools/Li-BES GUI/{0:}_LiBes_time_data.txt'.format(shot))
@@ -375,7 +375,6 @@ if BlockCase:
 				for x_ind in range(0,len(x)):
 					SNR[x_ind] = rSNR[maxSNR_ind-xmaxLi_ind+x_ind]
 
-
 		Li2p1noise=Li2p1.copy()
 		for x_ind in range(len(x)):
 			if realSNR:
@@ -396,7 +395,7 @@ if BlockCase:
 			b, a = butter_lowpass(cutoff, fs, order = order)
 			y = signal.filtfilt(b, a, data)
 			return y
-		cutoff = 6000
+		cutoff = 15000
 		fs = 200000
 		
 		Li2p1hn = Li2p1.copy()
@@ -544,7 +543,7 @@ if NoiseTime:
 				b, a = butter_lowpass(cutoff, fs, order = order)
 				y = signal.filtfilt(b, a, data)
 				return y
-			cutoff = 6000
+			cutoff = 15000
 			fs = 200000
 
 		#	smoothlen = 51
@@ -649,7 +648,7 @@ if RealCase:
 	if BlockCase:	
 		Li2p1=Li2p1noise.copy()
 		if SmoothTime:
-			Li2p1 = Li2p1hn.copy()
+			Li2p1 = Li2p1hn2.copy()
 	if RealCase:
 		Li2p1 = Li2p1hn2.copy()
 
@@ -677,7 +676,7 @@ if EmCase or BlockCase:
 		Li2p1Z[t_ind,:,:]=Li2p1[t_ind,:,:]-mean  # subtract mean value for every timestep (takes most of the time for the program!)
 
 if RealCase:
-		
+
 	#calculate the matrix only, if it has not been calculated before or changes occurred:
 	newZ = True
 	if os.path.isfile('{0:}_Li2p1Z.txt'.format(shot)) and newZ==False:
@@ -1311,17 +1310,18 @@ if (Standardblob==True and BlobCount>0):				# only occurs if switch is on and if
 	
 	COM = [None]*len(LiConAv[:,1])		# create COM-vector with appropriate shape
 	for m in range (0,int(TWind/avt)):
-		Blub = ndimage.measurements.center_of_mass(LiConAv[m,:])		# Provides tuple (x and y) --> Blub is intermediate to hold tuple and not used, while COM[m] holds the index of the COM on the x-axis
-		if (Blub<0):
-			print('There a negative index values for COM location in x[m] --> change time Window or position of detector and look into it -- something is weird!')
+	#	Blub = ndimage.measurements.center_of_mass(LiConAv[m,:])		# Provides tuple (x and y) --> Blub is intermediate to hold tuple and not used, while COM[m] holds the index of the COM on the x-axis
+	#	if (Blub<0):
+	#		print('There a negative index values for COM location in x[m] --> change time Window or position of detector and look into it -- something is weird!')
 	#	print(Blub[0])
-		if m == 0:
-			startblub = int(Blub[0])
-		if x[0]>x[-1]:
-			COM[m] = x[startblub]-abs(x[int(Blub[0])]-x[int(Blub[0])+1])*(Blub[0]-startblub)		# use only first part of tuple and calculate the effective COM-Position
-		if x[0]<x[-1]:
-			COM[m] = x[startblub]+abs(x[int(Blub[0])+1]-x[int(Blub[0])])*(Blub[0]-startblub)		# use only first part of tuple and calculate the effective COM-Position
-			
+	#	if m == 0:
+	#		startblub = int(Blub[0])
+	#	if x[0]>x[-1]:
+	#		COM[m] = x[startblub]-abs(x[int(Blub[0])]-x[int(Blub[0])+1])*(Blub[0]-startblub)		# use only first part of tuple and calculate the effective COM-Position
+	#	if x[0]<x[-1]:
+	#		COM[m] = x[startblub]+abs(x[int(Blub[0])+1]-x[int(Blub[0])])*(Blub[0]-startblub)		# use only first part of tuple and calculate the effective COM-Position
+	#	
+		COM[m] = np.sum(x*LiConAv[m,:])/np.sum(LiConAv[m,:])
 	COM = np.array(COM)								# convert list to array 
 
 
@@ -1357,10 +1357,10 @@ if (Standardblob==True and BlobCount>0):				# only occurs if switch is on and if
 		#for better view in plots:
 		LookWinMin_ori	=  LookWinMin			# to provide proper view of ax21-plot
 		LookWinMax_ori	=  LookWinMax			# to provide proper view of ax21-plot
-		LookWinMin	= -0.025
-		LookWinMax	=  0.07
-		LookWinMin_speed= -0.025
-		LookWinMax_speed=  0.07
+		LookWinMin	= -0.01
+		LookWinMax	=  0.03
+		LookWinMin_speed= -0.01
+		LookWinMax_speed=  0.03
 		LookWinMin_long	= -0.08
 		LookWinMax_long	=  0.08
 
@@ -1447,32 +1447,36 @@ if (Standardblob==True and BlobCount>0):				# only occurs if switch is on and if
 #	Position of Blob and speed ################################################################################################
 	
 #	calculate speed only for area, where blob really is!
-	if RealCase:
-		for i in range(len(Delt)):
-			if Delt[i]>LookWinMin:
-				LookWinMin_ind = i-1
-				break
-		for i in range(len(Delt)):
-			if Delt[i]>LookWinMax:
-				LookWinMax_ind = i-1
-				break
+
+	for i in range(len(Delt)):
+		if Delt[i]>LookWinMin:
+			LookWinMin_ind = i-1
+			break
+	for i in range(len(Delt)):
+		if Delt[i]>LookWinMax:
+			LookWinMax_ind = i-1
+			break
 
 
 
 	# calculate lienar regression statistics:
 	v_r, v_intercept, r_value, p_value, std_err = stats.linregress(Delt[LookWinMin_ind:LookWinMax_ind],COM[LookWinMin_ind:LookWinMax_ind])
-	
+
 	#create plot information of linear regression
 	(a_lgr,b_lgr) =polyfit(Delt[LookWinMin_ind:LookWinMax_ind],COM[LookWinMin_ind:LookWinMax_ind],1) 
 	COM_lgr = np.polyval([a_lgr,b_lgr],Delt[LookWinMin_ind:LookWinMax_ind+5])
 
 	# interpolate data for better calculation of slope
-	TWind_inter = np.linspace(LookWinMin,LookWinMax,300)		
-	XC_COM_smooth = spline(Delt,COM,TWind_inter)
-	
+	if not RealCase:
+		TWind_inter = np.linspace(LookWinMin,Delt[LookWinMax_ind+1],300)		
+		XC_COM_smooth = spline(Delt[LookWinMin_ind:LookWinMax_ind+1],COM[LookWinMin_ind:LookWinMax_ind+1],TWind_inter)
+	if RealCase:
+		TWind_inter = np.linspace(LookWinMin,Delt[LookWinMax_ind+3],300)		
+		XC_COM_smooth = spline(Delt[LookWinMin_ind:LookWinMax_ind+5],COM[LookWinMin_ind:LookWinMax_ind+5],TWind_inter)
+
 	#calculate MAXIMUM slopes of real data and interpolated data:
 	slope_data=[None]*(LookWinMax_ind-LookWinMin_ind)
-	slope_inter=[None]*(len(TWind_inter)-1)
+	slope_inter=[None]*(len(TWind_inter))
 	slope_data=np.array(slope_data)						# convert list to array
 	slope_inter=np.array(slope_inter)					# convert list to array
 	slope_data[0]=0
@@ -1483,24 +1487,30 @@ if (Standardblob==True and BlobCount>0):				# only occurs if switch is on and if
 			if (slope_data[q-LookWinMin_ind]<0):
 				slope_data[q-LookWinMin_ind]=0
 		if x[0]<x[-1]:
-			slope_data[q-LookWinMin_ind] = (COM[q]-COM[q-1])/abs(Delt[q]-Delt[q-1])
+			slope_data[q-LookWinMin_ind] = -(COM[q]-COM[q-1])/abs(Delt[q]-Delt[q-1])
 			if (slope_data[q-LookWinMin_ind]<0):
 				slope_data[q-LookWinMin_ind]=0
-	v_dmax=np.amax(slope_data)						# find maximum slope of data 
-	for p in range (0,len(TWind_inter)-1):					# Calculate slopes between every point
-		slope_inter[p] = (XC_COM_smooth[p]-XC_COM_smooth[p-1])/abs(TWind_inter[p]-TWind_inter[p-1])
-		if (slope_inter[p]<0):
-			slope_inter[p]=0
-	v_imax=np.amax(slope_inter)						# find maximum slope interpolation
 
+	v_dmax=np.amax(slope_data)						# find maximum slope of data 
+	for p in range (0,len(TWind_inter)):					# Calculate slopes between every point
+		if x[0]>x[-1]:
+			slope_inter[p] = (XC_COM_smooth[p]-XC_COM_smooth[p-1])/abs(TWind_inter[p]-TWind_inter[p-1])
+			if (slope_inter[p]<0):
+				slope_inter[p]=0
+		if x[0]<x[-1]:
+			slope_inter[p] = -(XC_COM_smooth[p]-XC_COM_smooth[p-1])/abs(TWind_inter[p]-TWind_inter[p-1])
+			if (slope_inter[p]<0):
+				slope_inter[p]=0
+	v_imax=np.amax(slope_inter)						# find maximum slope interpolation
+	pdb.set_trace()
 
 	#convert into [m/s]
-	if x[0]<x[-1]:
-		vr = -v_r*0.01*pow(10,3)
-		rval = -r_value*0.01*pow(10,3)
 	if x[0]>x[-1]:
 		vr = v_r*0.01*pow(10,3)
 		rval = r_value*0.01*pow(10,3)
+	if x[0]<x[-1]:
+		vr = -v_r*0.01*pow(10,3)
+		rval = -r_value*0.01*pow(10,3)
 	vdmax = v_dmax*0.01*pow(10,3)
 	vimax = v_imax*0.01*pow(10,3)
 

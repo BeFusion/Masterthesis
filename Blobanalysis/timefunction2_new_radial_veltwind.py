@@ -61,12 +61,13 @@ import resource
 # Measurements to be analyzed:
 #files = [004,108,109,110,111,112,113]
 
-files = [888]
+files = [113]
 shots = [29315]
 shots = [29302,29303, 29306, 29307, 29308, 29309, 29310,29311,29312,29315]
 
-RealCase = True		# for reading in real emission data from ASDEX
+RealCase = False		# for reading in real emission data from ASDEX
 
+thressweep = True
 
 
 if RealCase:
@@ -75,6 +76,10 @@ if RealCase:
 storepref = '_veltwind'				# specify fileextension to be read in and to be stored (e.g '_dens_test', if file is called '004Emresults_dens_test')
 if RealCase:
 	storepref = 'Real_data'
+if RealCase and thressweep:
+	storepref = 'Real_data_thressweep'
+if thressweep:
+	storepref = '_thressweep'	
 
 for flup in range (0,len(files)):
 	if not RealCase:
@@ -134,8 +139,6 @@ for flup in range (0,len(files)):
 		yvariation = True		# Calculate more values for y-variation
 			
 		Standardblob= True		# switch for calculations
-
-		thressweep = False
 
 		NewData = True			# Switch to write output
 
@@ -246,12 +249,12 @@ for flup in range (0,len(files)):
 			indizes_beam_on = indizes_beam_on.astype(int)				# convert to int
 			indizes_beam_on = np.delete(indizes_beam_on,(-1),axis=0)		# last value is wrong
 			shot_params = np.loadtxt('/afs/ipp-garching.mpg.de/u/bschiess/Analyzetools/Li-BES GUI/{0:}_LiBes_parameter.txt'.format(shot))
-			x1 = np.loadtxt('/afs/ipp-garching.mpg.de/u/bschiess/Analyzetools/Li-BES GUI/29302_LiBes_rhop_at2900ms.txt')
+			#x1 = np.loadtxt('/afs/ipp-garching.mpg.de/u/bschiess/Analyzetools/Li-BES GUI/29302_LiBes_rhop_at2900ms.txt')
 			
-			x = [None]*16
-			for x_ind in range(len(x)):
-				x[x_ind] = x1[x_ind]
-		
+			#x = [None]*16
+			#for x_ind in range(len(x)):
+			#	x[x_ind] = x1[x_ind]
+
 			B0 = shot_params[2]
 			q95 = shot_params[0]
 			Lp = shot_params[1]
@@ -318,9 +321,10 @@ for flup in range (0,len(files)):
 		#        x = 0.652*(ch-1) +1.01				# equation from calibrate_functions.py
 			
 			#make a short version of x-axis:
-			#ch = np.arange(1,15)				# assumed number of channels: 26
-			#x = 0.652*(ch-1) +1.01	
+			ch = np.arange(1,15)				# assumed number of channels: 26
+			x_1 = 0.652*(ch-1) +1.01	
 
+			x = np.array([0, 1.2,1.7,2.4,3,3.6,4.22,5.45,6.1,6.75,7.37,8.02,8.65,9.3,9.95,10.58]) 
 
 		# some lengthes used during the program:
 		mn=len(x)
@@ -328,56 +332,15 @@ for flup in range (0,len(files)):
 		timestep=len(time)				# misleading name, sorry
 		avt=(time[timestep-1]-time[0])/timestep
 		if RealCase:
-			avt = avt*1000
+			avt = avt*10**3
 			for i in range(len(time)):
-				time[i]=time[i]*1000
-
+				time[i]=time[i]*10**3
 		if not RealCase:
 			stepsize=len(y)					# misleading name, sorry
 			avy=y[stepsize-1]/stepsize			
 			
 
-		if thressweep:
-			if x[0]<x[-1]:
-				sys.exit('The x-axis is inverted! Please change the thressweep-parameters accordingly!')
-				for i in range(len(x)):
-					if x[i]>=4 and x[i-1]<4:
-						Wall_ind = i
-						break
-				for i in range(len(x)):
-					if x[i]>=0 and x[i-1]<0:
-						LCFS_ind = i
-						break
-				T1 = [2]*(Wall_ind)
-				T1 = np.array(T1)
-				T2 = np.linspace(2,1,abs(LCFS_ind-Wall_ind))
-				T3 = [1]*(len(x)-LCFS_ind)
-				T3 = np.array(T3)
-
-			if x[0]>x[-1]:
-				for i in range(len(x)):
-					if x[i]<=4 and x[i-1]>4:
-						Wall_ind = i
-						break
-				for i in range(len(x)):
-					if x[i]<=0 and x[i-1]>0:
-						LCFS_ind = i
-						break
-				T1 = [2]*(Wall_ind)
-				T1 = np.array(T1)
-				T2 = np.linspace(2,1,abs(LCFS_ind-Wall_ind))
-				T3 = [1]*(len(x)-LCFS_ind)
-				T3 = np.array(T3)
-
-				ThresCon_arr = np.append(T1,T2)
-				ThresCon_arr = np.append(ThresCon_arr,T3)
-				#plt.plot(x,ThresCon_arr, linewidth = 2, color = 'b')
-				#plt.xlabel('radial axis (cm)')
-				#plt.ylabel('Threshold')
-				#plt.ylim(0.7,2.3)
-				#matplotlib = reload(matplotlib)
-				#plt.switch_backend('GTK')
-				#plt.show()
+		
 		if Noise:
 			for x_ind in range(mn):
 				for y_ind in range(stepsize):				
@@ -607,8 +570,8 @@ for flup in range (0,len(files)):
 						b, a = butter_lowpass(cutoff, fs, order = order)
 						y = signal.filtfilt(b, a, data)
 						return y
-					cutoff = 40000
-					fs = 660000
+					cutoff = 15000
+					fs = 200000
 					
 					Li2p1hn = Li2p1.copy()
 					Li2p1hn2 = Li2p1.copy()
@@ -624,7 +587,7 @@ for flup in range (0,len(files)):
 					# only use the new noise and smoothed data if selected
 					Li2p1=Li2p1noise.copy()
 					if SmoothTime:
-						Li2p1 = Li2p1hn.copy()
+						Li2p1 = Li2p1hn2.copy()
 
 
 			#Create zero-mean fluctuation matrix
@@ -842,6 +805,48 @@ for flup in range (0,len(files)):
 
 					# choose the according thres-hold for the sweep-case:
 					if thressweep:
+						if x[0]<x[-1]:
+							#sys.exit('The x-axis is inverted! Please change the thressweep-parameters accordingly!')
+							for i in range(len(x)):
+								if x[i]>=7.3 and x[i-1]<7.3:
+									LCFS_ind = i
+									break
+							for i in range(len(x)):
+								if x[i]>=2.9 and x[i-1]<2.9:
+									Wall_ind = i
+									break
+							T1 = [2]*(Wall_ind)
+							T1 = np.array(T1)
+							T2 = np.linspace(2,1,abs(LCFS_ind-Wall_ind))
+							T3 = [1]*(len(x)-LCFS_ind)
+							T3 = np.array(T3)
+
+							ThresCon_arr = np.append(T1,T2)
+							ThresCon_arr = np.append(ThresCon_arr,T3)
+						if x[0]>x[-1]:
+							for i in range(len(x)):
+								if x[i]<=4 and x[i-1]>4:
+									Wall_ind = i
+									break
+							for i in range(len(x)):
+								if x[i]<=0 and x[i-1]>0:
+									LCFS_ind = i
+									break
+							T1 = [2]*(Wall_ind)
+							T1 = np.array(T1)
+							T2 = np.linspace(2,1,abs(LCFS_ind-Wall_ind))
+							T3 = [1]*(len(x)-LCFS_ind)
+							T3 = np.array(T3)
+
+							ThresCon_arr = np.append(T1,T2)
+							ThresCon_arr = np.append(ThresCon_arr,T3)
+							#plt.plot(x,ThresCon_arr, linewidth = 2, color = 'b')
+							#plt.xlabel('radial axis (cm)')
+							#plt.ylabel('Threshold')
+							#plt.ylim(0.7,2.3)
+							#matplotlib = reload(matplotlib)
+							#plt.switch_backend('GTK')
+							#plt.show()
 						ThresCon = ThresCon_arr[Refdec_ind]
 						print('ThresCon for Refdec = {0:.2f} at {1:.2f}.'.format(x[Refdec_ind],ThresCon))
 					LiCon = LiAv + ThresCon*LiSig									# Set condition
@@ -1035,7 +1040,6 @@ for flup in range (0,len(files)):
 						if (NullPos_ind==0):
 							pdb.set_trace()
 							sys.exit('The parameter for time window was not chosen to be even, NullPos_ind is not exact')
-
 	# 	only for calculation for long time window for tau_B ###################################################################################
 
 						if not RealCase:
@@ -1298,28 +1302,28 @@ for flup in range (0,len(files)):
 									LiConAv[l,k]=0
 						COM = [None]*len(LiConAv[:,1])		# create COM-vector with appropriate shape
 						for m in range (0,int(TWind/avt)):
-							Blubern = ndimage.measurements.center_of_mass(LiConAv[m,:])		# Provides tuple (x and y) --> Blubern is intermediate to hold tuple and not used, while COM[m] holds the index of the COM on the x-axis
-							if np.isnan(Blubern[0]) or Blubern<0 or Blubern[0]+1==len(x):
+							#Blubern = ndimage.measurements.center_of_mass(LiConAv[m,:])		# Provides tuple (x and y) --> Blubern is intermediate to hold tuple and not used, while COM[m] holds the index of the COM on the x-axis
+							#if np.isnan(Blubern[0]) or Blubern<0 or Blubern[0]+1==len(x):
 
-								blub=999
-								print('blub in left/right_index in COM')
-						#		pdb.set_trace()
-								if not BlockCase:
-									shift_Block = 0	
-								Counterbad, blub, Delx, tau_B, Blobf,vr, rval, vdmax, vimax = write_nan(fu, shift_Block, Measurement,maxlen, NewData, Radial, WriteHeader, DenCase, EmCase, BlockCase, Counterbad, blub, t_start,t_end, x,y,Refdec_ind, shift, BlobCount, Delx, tau_B, Blobf,vr, rval, vdmax, vimax, B0, Lp, q95, Te0, Ti0, ne0, omegaCi, rhoS, endtime, LiConAvrel)
-								blub=999
-								break
-							if m == 0:
-								startblub = int(Blubern[0])
+							#	blub=999
+							#	print('blub in left/right_index in COM')
+						#	#	pdb.set_trace()
+							#	if not BlockCase:
+							#		shift_Block = 0	
+							#	Counterbad, blub, Delx, tau_B, Blobf,vr, rval, vdmax, vimax = write_nan(fu, shift_Block, Measurement,maxlen, NewData, Radial, WriteHeader, DenCase, EmCase, BlockCase, Counterbad, blub, t_start,t_end, x,y,Refdec_ind, shift, BlobCount, Delx, tau_B, Blobf,vr, rval, vdmax, vimax, B0, Lp, q95, Te0, Ti0, ne0, omegaCi, rhoS, endtime, LiConAvrel)
+							#	blub=999
+							#	break
+							#if m == 0:
+							#	startblub = int(Blubern[0])
 							# wrong: COM[m] = x[int(Blubern[0])]-abs(x[int(Blubern[0])]-x[int(Blubern[0])+1])*(Blubern[0]-int(Blubern[0]))						# use only first part of tuple
-							if x[0]>x[-1]:
-								COM[m] = x[startblub]-abs(x[int(Blubern[0])]-x[int(Blubern[0])+1])*(Blubern[0]-startblub)		# use only first part of tuple and calculate the effective COM-Position
-							if x[0]<x[-1]:
-								COM[m] = x[startblub]+abs(x[int(Blubern[0])+1]-x[int(Blubern[0])])*(Blubern[0]-startblub)		# use only first part of tuple and calculate the effective COM-Position
-			
-						if np.isnan(Blubern[0]) or blub == 999:
-							blub = 0
-							continue
+							#if x[0]>x[-1]:
+							#	COM[m] = x[startblub]-abs(x[int(Blubern[0])]-x[int(Blubern[0])+1])*(Blubern[0]-startblub)		# use only first part of tuple and calculate the effective COM-Position
+							#if x[0]<x[-1]:
+							#	COM[m] = x[startblub]+abs(x[int(Blubern[0])+1]-x[int(Blubern[0])])*(Blubern[0]-startblub)		# use only first part of tuple and calculate the effective COM-Position
+							COM[m] = np.sum(x*LiConAv[m,:])/np.sum(LiConAv[m,:])
+						#if np.isnan(Blubern[0]) or blub == 999:
+						#	blub = 0
+						#	continue
 						COM = np.array(COM)								# convert list to array
 
 					# 	Calculation of relative fluction of intensity in spectrum or density ######################################################
@@ -1407,6 +1411,7 @@ for flup in range (0,len(files)):
 
 
 
+
 					###################################################################################################################################
 					########### Standard Blob analysis (part 2) #######################################################################################
 					###################################################################################################################################
@@ -1416,8 +1421,22 @@ for flup in range (0,len(files)):
 						#	calculate speed only for area, where blob really is!
 						if RealCase:
 							#for better velocity calculation:
-							LookWinMin	= -0.025
-							LookWinMax	=  0.10
+							LookWinMin	= -0.02
+							LookWinMax	=  0.08
+							for i in range(len(Delt)):
+								if Delt[i]>LookWinMin:
+									LookWinMin_ind = i-1
+									break
+							for i in range(len(Delt)):
+								if Delt[i]>LookWinMax:
+									LookWinMax_ind = i-1
+									break
+								
+
+						if not RealCase:
+							#for better velocity calculation:
+							LookWinMin	= -0.01
+							LookWinMax	=  0.03
 							for i in range(len(Delt)):
 								if Delt[i]>LookWinMin:
 									LookWinMin_ind = i-1
@@ -1427,6 +1446,7 @@ for flup in range (0,len(files)):
 									LookWinMax_ind = i-1
 									break
 
+
 						# calculate lienar regression statistics:
 						v_r, v_intercept, r_value, p_value, std_err = stats.linregress(Delt[LookWinMin_ind:LookWinMax_ind],COM[LookWinMin_ind:LookWinMax_ind])
 
@@ -1435,12 +1455,16 @@ for flup in range (0,len(files)):
 						COM_lgr = np.polyval([a_lgr,b_lgr],Delt[LookWinMin_ind:LookWinMax_ind])
 
 						# interpolate data for better calculation of slope
-						TWind_inter = np.linspace(LookWinMin,LookWinMax,300)		
-						XC_COM_smooth = spline(Delt,COM,TWind_inter)
-						
+						if not RealCase:
+							TWind_inter = np.linspace(LookWinMin,Delt[LookWinMax_ind+1],300)		
+							XC_COM_smooth = spline(Delt[LookWinMin_ind:LookWinMax_ind+1],COM[LookWinMin_ind:LookWinMax_ind+1],TWind_inter)
+						if RealCase:
+							TWind_inter = np.linspace(LookWinMin,Delt[LookWinMax_ind+1],300)		
+							XC_COM_smooth = spline(Delt[LookWinMin_ind:LookWinMax_ind+4],COM[LookWinMin_ind:LookWinMax_ind+4],TWind_inter)
+
 						#calculate maximum slopes of real data and interpolated data:
 						slope_data=[None]*(LookWinMax_ind-LookWinMin_ind)
-						slope_inter=[None]*(len(TWind_inter)-1)
+						slope_inter=[None]*(len(TWind_inter))
 						slope_data=np.array(slope_data)						# convert list to array
 						slope_inter=np.array(slope_inter)					# convert list to array
 						slope_data[0]=0
@@ -1451,31 +1475,35 @@ for flup in range (0,len(files)):
 								if (slope_data[q-LookWinMin_ind]<0):
 									slope_data[q-LookWinMin_ind]=0
 							if x[0]<x[-1]:
-								slope_data[q-LookWinMin_ind] = (COM[q]-COM[q-1])/abs(Delt[q]-Delt[q-1])
+								slope_data[q-LookWinMin_ind] = -(COM[q]-COM[q-1])/abs(Delt[q]-Delt[q-1])
 								if (slope_data[q-LookWinMin_ind]<0):
 									slope_data[q-LookWinMin_ind]=0
 
 						v_dmax=np.amax(slope_data)						# find maximum slope of data 
-						for p in range (0,len(TWind_inter)-1):					# Calculate slopes between every point
-							slope_inter[p] = (XC_COM_smooth[p]-XC_COM_smooth[p-1])/abs(TWind_inter[p]-TWind_inter[p-1])
-							if (slope_inter[p]<0):
-								slope_inter[p]=0
+						for p in range (0,len(TWind_inter)):					# Calculate slopes between every point
+							if x[0]>x[-1]:
+								slope_inter[p] = (XC_COM_smooth[p]-XC_COM_smooth[p-1])/abs(TWind_inter[p]-TWind_inter[p-1])
+								if (slope_inter[p]<0):
+									slope_inter[p]=0
+							if x[0]<x[-1]:
+								slope_inter[p] = -(XC_COM_smooth[p]-XC_COM_smooth[p-1])/abs(TWind_inter[p]-TWind_inter[p-1])
+								if (slope_inter[p]<0):
+									slope_inter[p]=0
 						v_imax=np.amax(slope_inter)						# find maximum slope interpolation
 
 						#convert into [m/s]
-						if x[0]<x[-1]:
-							vr = -v_r*0.01*pow(10,3)
-							rval = -r_value*0.01*pow(10,3)
 						if x[0]>x[-1]:
 							vr = v_r*0.01*pow(10,3)
 							rval = r_value*0.01*pow(10,3)
+						if x[0]<x[-1]:
+							vr = -v_r*0.01*pow(10,3)
+							rval = -r_value*0.01*pow(10,3)
 						vdmax = v_dmax*0.01*pow(10,3)
 						vimax = v_imax*0.01*pow(10,3)
 
 						print('Average speed of blob:{0:.1f}m/s with standard deviation of {1:.1f}m/s'.format(vr,rval))	# Average speed [m/s]
 						print('Maximum speed of blob (real data): {0:.1f}m/s'.format(vdmax))	# Maximum speed from data [m/s]
 						print('Maximum speed of blob (smoothed): {0:.1f}m/s:'.format(vimax))	# Maximum speed from smoothing [m/s]
-
 
 
 					###################################################################################################################################

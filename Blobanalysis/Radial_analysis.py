@@ -38,6 +38,7 @@ import pdb					# for error tracking (set_trace at right position)
 ########### READING DATA AND PRELIMINARY settings #############################################################################
 ###############################################################################################################################
 
+#rhopol = True		# transformation in polodal coordinates
 
 NoiseSmooth = False
 fourCase = True		# if 4 shall be compared
@@ -49,18 +50,38 @@ if NoiseSmooth:  	# --> this case is only for time-smooth --> check saving names
 	filename2 = '_veltwind_TIME_SNR100_Smooth'
 if not NoiseSmooth:
 	filename = '_veltwind'
-Measurement = 113 		# specify number of measurement without leading zeros, which is the prefix of the file in form (will be extended later to e.g. 004) 
-savenow = False
+Measurement = 111		# specify number of measurement without leading zeros, which is the prefix of the file in form (will be extended later to e.g. 004) 
+savenow = True
+comp = True
 
+#real beam-coordinates:
 
 def radial_analysis(filename,Measurement,Refdec_ind, Refdec_ind3, savenow, SNR, NoiseSmooth, fourCase):
 	
-	time, x_pos, y_pos, f_B, rho_x, tau_B, v_r, v_rmist, vdmax, vimax, Relem, B0, Lp,q95 = np.loadtxt('{0:03d}Emresults{1:}.txt'.format(Measurement,filename), usecols = (3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16, 17), unpack = True, skiprows=2)
-	time2, x_pos2,y_pos2, f_B2, rho_x2, tau_B2, v_r2, v_rmist2, vdmax2, vimax2, Relem2, B02, Lp2, q952 = np.loadtxt('{0:03d}Denresults{1:}.txt'.format(Measurement,filename), usecols = (3, 4, 5,  6, 7, 8, 10, 11, 12, 13, 14, 15, 16, 17), unpack = True, skiprows=2)
-	time3, x_pos3, y_pos3, f_B3, rho_x3, tau_B3, v_r3, v_rmist3, vdmax3, vimax3, Relem3, B03, Lp3, q953 = np.loadtxt('{0:03d}Blockresults{1:}.txt'.format(Measurement,filename), usecols = (3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16, 17), unpack = True, skiprows=2)
-	if fourCase:
-		time4, x_pos4, y_pos4, f_B4, rho_x4, tau_B4, v_r4, v_rmist4, vdmax4, vimax4, Relem4, B04, Lp4, q954 = np.loadtxt('{0:03d}Blockresults{1:}_TIME_SNR_Comparison.txt'.format(Measurement,filename), usecols = (3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16, 17), unpack = True, skiprows=2)
-
+	if not comp:
+		time, x_pos, y_pos, f_B, rho_x, tau_B, v_r, v_rmist, vdmax, vimax, Relem, B0, Lp,q95 = np.loadtxt('{0:03d}Emresults{1:}.txt'.format(Measurement,filename), usecols = (3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16, 17), unpack = True, skiprows=2)
+		time2, x_pos2,y_pos2, f_B2, rho_x2, tau_B2, v_r2, v_rmist2, vdmax2, vimax2, Relem2, B02, Lp2, q952 = np.loadtxt('{0:03d}Denresults{1:}.txt'.format(Measurement,filename), usecols = (3, 4, 5,  6, 7, 8, 10, 11, 12, 13, 14, 15, 16, 17), unpack = True, skiprows=2)
+		time3, x_pos3, y_pos3, f_B3, rho_x3, tau_B3, v_r3, v_rmist3, vdmax3, vimax3, Relem3, B03, Lp3, q953 = np.loadtxt('{0:03d}Blockresults{1:}.txt'.format(Measurement,filename), usecols = (3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16, 17), unpack = True, skiprows=2)
+		if fourCase:
+			time4, x_pos4, y_pos4, f_B4, rho_x4, tau_B4, v_r4, v_rmist4, vdmax4, vimax4, Relem4, B04, Lp4, q954 = np.loadtxt('{0:03d}Blockresults{1:}_TIME_SNR_Comparison.txt'.format(Measurement,filename), usecols = (3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16, 17), unpack = True, skiprows=2)
+		
+	if comp:
+		fourCase = True
+		Casei = 'Block' # Alternatives are Em, Den or BLock
+		Exten = '_TIME_SNR_Comparison'	# Alternative is '', '_TIME_SNR_Comparison'
+		time, x_pos, y_pos, f_B, rho_x, tau_B, v_r, v_rmist, vdmax, vimax, Relem, B0, Lp,q95 = np.loadtxt('{0:03d}{1:}results{2:}_thressweep{3:}.txt'.format(Measurement,Casei,filename, Exten), usecols = (3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16, 17), unpack = True, skiprows=2)
+		time2, x_pos2,y_pos2, f_B2, rho_x2, tau_B2, v_r2, v_rmist2, vdmax2, vimax2, Relem2, B02, Lp2, q952 = np.loadtxt('{0:03d}{1:}results{2:}_threscon05{3:}.txt'.format(Measurement,Casei,filename, Exten), usecols = (3, 4, 5,  6, 7, 8, 10, 11, 12, 13, 14, 15, 16, 17), unpack = True, skiprows=2)
+		time3, x_pos3, y_pos3, f_B3, rho_x3, tau_B3, v_r3, v_rmist3, vdmax3, vimax3, Relem3, B03, Lp3, q953 = np.loadtxt('{0:03d}{1:}results{2:}_threscon1{3:}.txt'.format(Measurement,Casei,filename, Exten), usecols = (3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16, 17), unpack = True, skiprows=2)
+		time4, x_pos4, y_pos4, f_B4, rho_x4, tau_B4, v_r4, v_rmist4, vdmax4, vimax4, Relem4, B04, Lp4, q954 = np.loadtxt('{0:03d}{1:}results{2:}{3:}.txt'.format(Measurement,Casei,filename, Exten), usecols = (3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16, 17), unpack = True, skiprows=2)
+	
+	'''if rhopol:
+		xBeam = np.array([0,1.2,1.7,2.4,3,3.6,4.22,5.45,6.1,6.75,7.37,8.02,8.65,9.3,9.95,10.58,11.21,11.86,12.56,13.26,13.99,14.66,15.39,16.13,16.89,17.61])
+		x1 = np.loadtxt('/afs/ipp-garching.mpg.de/u/bschiess/Analyzetools/Li-BES GUI/29302_LiBes_rhop_at2900ms.txt')
+		difx = [None]*(len(xBeam)-1)
+		difr = [None]*(len(xBeam)-1)
+		for x_ind in range(len(xBeam)-1):
+			difx[x_ind] = xBeam[x_ind+1]-xBeam[x_ind]
+			difr[x_ind] = x1[x_ind+1]-x1[x_ind]'''
 
 	#	time, x_pos, y_pos, f_B, rho_x, tau_B, v_r, v_rmist, vdmax, vimax, B0, Lp,q95 = np.loadtxt('{0:03d}Emresults.txt'.format(Measurement), usecols = (3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16), unpack = True, skiprows=2)
 	#	time2, x_pos2,y_pos2, f_B2, rho_x2, tau_B2, v_r2, v_rmist2, vdmax2, vimax2, B02, Lp2,q952 = np.loadtxt('{0:03d}Denresults.txt'.format(Measurement), usecols = (3, 4, 5,  6, 7, 8, 10, 11, 12, 13, 14, 15, 16), unpack = True, skiprows=2)
@@ -507,7 +528,7 @@ def radial_analysis(filename,Measurement,Refdec_ind, Refdec_ind3, savenow, SNR, 
 	ax4.axvline(0,color='k', linestyle='-.')
 	#ax4.set_xlabel('beam axis $x$ (cm)', labelpad= -10)			# switched of, since axis in row below
 	ax4.set_ylabel(r'Average velocity $v_r$ (m/s)')
-	ax4.set_ylim(-50,200)
+	ax4.set_ylim(-200,500)
 	ax4.get_yaxis().set_label_coords(-0.11,0.5)
 	ax4.set_title(r'Average velocity $v_r$')
 
@@ -547,33 +568,42 @@ def radial_analysis(filename,Measurement,Refdec_ind, Refdec_ind3, savenow, SNR, 
 	ax7.set_ylim(0,4000)
 	ax7.set_title(r'Maximum velocities for interpolated data')
 
-
-	ax8.errorbar(x,Relem, yerr = Relemerr,color =  'k',marker='s',label='Emission data')
-	ax8.errorbar(x2,Relem2, yerr = Relem2err, color = 'b',marker='o',label='Density data')
-	ax8.errorbar(x3,Relem3, yerr = Relem3err, color = 'g',marker='D',label='Block data')
-	if fourCase:
-		ax8.errorbar(x4,Relem4, yerr = Relem4err, color = 'orange',marker='v',label='Block data (real SNR)')
+	if not comp:
+		ax8.errorbar(x,Relem, yerr = Relemerr,color =  'k',marker='s',label='Emission data')
+		ax8.errorbar(x2,Relem2, yerr = Relem2err, color = 'b',marker='o',label='Density data')
+		ax8.errorbar(x3,Relem3, yerr = Relem3err, color = 'g',marker='D',label='Block data')
+		if fourCase:
+			ax8.errorbar(x4,Relem4, yerr = Relem4err, color = 'orange',marker='v',label='Block data (real SNR)')
+	if comp:
+		ax8.errorbar(x,Relem, yerr = Relemerr,color =  'k',marker='s',label= r'Run 111, $\sigma$ varied in [1,2]')
+		ax8.errorbar(x2,Relem2, yerr = Relem2err, color = 'b',marker='o',label= r'Run 111, $\sigma$ = 0.5')
+		ax8.errorbar(x3,Relem3, yerr = Relem3err, color = 'g',marker='D',label= r'Run 111, $\sigma$ = 1')
+		ax8.errorbar(x4,Relem4, yerr = Relem4err, color = 'orange',marker='v',label= r'Run 111, $\sigma$ = 2')
 	ax8.axvline(0,color='k', linestyle='-.')
 	ax8.set_xlabel('beam axis $x$ (cm)', labelpad= 0)			# switched of, since axis in row below
 	ax8.set_ylabel(r'relative emission $\delta I/I$ or $\delta n/n$')
 	ax8.get_yaxis().set_label_coords(-0.11,0.5)
+	ax8.set_ylim(0,3)
 	ax8.set_title(r'Blob amplitude')
 
 
-	leg = ax8.legend(loc='upper center', bbox_to_anchor = (-0.1,-0.05),fancybox = True, numpoints = 1)
+	leg = ax8.legend(loc='upper center', bbox_to_anchor = (-0.1,-0.05),fancybox = True, numpoints = 1, ncol = 4)
 	
 	# leg = ax7.legend(loc='upper center', bbox_to_anchor = (0.225,-0.18),fancybox = True, numpoints = 1)
 
 	if savenow:
-		if NoiseSmooth and not fourCase:
+		if NoiseSmooth and not fourCase and not comp:
 			f1.savefig('{0:03d}FigRadial{1:}'.format(Measurement,filename))
-		if not NoiseSmooth and not fourCase:
+		if not NoiseSmooth and not fourCase and not comp:
 			f1.savefig('{0:03d}FigRadial{1:}'.format(Measurement,filename))
-		if fourCase:
+		if fourCase and not comp:
 			f1.savefig('{0:03d}FigRadial{1:}_all_cases'.format(Measurement,filename))
-
-	return B0[0], q95[0], Lp[0], f_B[Refdec_ind]/time[10]*1000, f_Berr[Refdec_ind]/time[10]*1000, rho_x[Refdec_ind], rho_xerr[Refdec_ind], tau_B[Refdec_ind], tau_Berr[Refdec_ind], v_r[Refdec_ind], v_rerr[Refdec_ind], Relem[Refdec_ind], Relemerr[Refdec_ind], f_B2[Refdec_ind]/time[10]*1000, f_B2err[Refdec_ind]/time[10]*1000, rho_x2[Refdec_ind], rho_x2err[Refdec_ind], tau_B2[Refdec_ind], tau_B2err[Refdec_ind], v_r2[Refdec_ind], v_r2err[Refdec_ind], Relem2[Refdec_ind], Relem2err[Refdec_ind],f_B3[Refdec_ind3]/time[10]*1000, f_B3err[Refdec_ind3]/time[10]*1000, rho_x3[Refdec_ind3], rho_x3err[Refdec_ind3], tau_B3[Refdec_ind3], tau_B3err[Refdec_ind3], v_r3[Refdec_ind3], v_r3err[Refdec_ind3], Relem3[Refdec_ind3], Relem3err[Refdec_ind3]
-
+		if comp and savenow:
+			f1.savefig('{0:03d}FigRadial_threshold_{1:}results{2:}'.format(Measurement,Casei,Exten))
+	if not comp:
+		return B0[0], q95[0], Lp[0], f_B[Refdec_ind]/time[10]*1000, f_Berr[Refdec_ind]/time[10]*1000, rho_x[Refdec_ind], rho_xerr[Refdec_ind], tau_B[Refdec_ind], tau_Berr[Refdec_ind], v_r[Refdec_ind], v_rerr[Refdec_ind], Relem[Refdec_ind], Relemerr[Refdec_ind], f_B2[Refdec_ind]/time[10]*1000, f_B2err[Refdec_ind]/time[10]*1000, rho_x2[Refdec_ind], rho_x2err[Refdec_ind], tau_B2[Refdec_ind], tau_B2err[Refdec_ind], v_r2[Refdec_ind], v_r2err[Refdec_ind], Relem2[Refdec_ind], Relem2err[Refdec_ind],f_B3[Refdec_ind3]/time[10]*1000, f_B3err[Refdec_ind3]/time[10]*1000, rho_x3[Refdec_ind3], rho_x3err[Refdec_ind3], tau_B3[Refdec_ind3], tau_B3err[Refdec_ind3], v_r3[Refdec_ind3], v_r3err[Refdec_ind3], Relem3[Refdec_ind3], Relem3err[Refdec_ind3]
+	if comp: 
+		return
 
 if __name__ == "__main__":
 	# call function from below:
