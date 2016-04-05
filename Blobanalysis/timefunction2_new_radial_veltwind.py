@@ -18,6 +18,7 @@ from scipy.interpolate import spline		# for interpolate COM position for good sp
 from scipy import stats, polyfit		# for linear interpolation data
 from scipy_cookbook_smooth import smooth	# for interpolating noisy data
 from scipy import signal			# for smoothing time signal
+from matplotlib.offsetbox import AnchoredText
 from hdf5_read import Li_read_hdf5		# read hdf5 file in
 from block_func import block_beam_func		# for calculating the block data
 from write_nan import write_nan			# for writing in bad cases
@@ -61,14 +62,16 @@ import resource
 # Measurements to be analyzed:
 #files = [004,108,109,110,111,112,113]
 
-files = [113]
+files = [108,109,004,110,111,112,113]
+files = [111]
 shots = [29315]
 shots = [29302,29303, 29306, 29307, 29308, 29309, 29310,29311,29312,29315]
 
 RealCase = False		# for reading in real emission data from ASDEX
 
-thressweep = True
+thressweep = False
 
+scalingtest = False
 
 if RealCase:
 	files = shots
@@ -80,6 +83,8 @@ if RealCase and thressweep:
 	storepref = 'Real_data_thressweep'
 if thressweep:
 	storepref = '_thressweep'	
+if scalingtest:
+	storepref = '_scalingtest'
 
 for flup in range (0,len(files)):
 	if not RealCase:
@@ -90,11 +95,12 @@ for flup in range (0,len(files)):
 
 	# Case Loop
 	Counterbad = 0				# Number of bad events
-	if not RealCase:
+	
+	if not RealCase:			# specify different cases (all four...)
 		ad = 0
 		bd = 4
 
-	if RealCase:
+	if RealCase:				# only one case is possible
 		ad = 5
 		bd = 6
 	for Case in range (ad,bd):
@@ -130,21 +136,27 @@ for flup in range (0,len(files)):
 		NoiseTime = False		# puts  noise on time signal
 		SmoothTime = False		# smoothes time-signal
 		realSNR = False		# reads in SNR profile for the Block Case
+		
+		statist = True
+		statref = Refdec
+		if RealCase:
+			statref = Refdec_ind_real
 
 		if Case == 2:
 			NoiseTime = True		# puts  noise on time signal
 			SmoothTime = True		# smoothes time-signal
 			realSNR = True	# reads in SNR profile for the Block Case
 
-		yvariation = True		# Calculate more values for y-variation
-			
+		yvariation = False		# Calculate more values for y-variation
+		if yvariation == False:
+			print('Attention: No averaging in y-direction!!!')
 		Standardblob= True		# switch for calculations
 
 		NewData = True			# Switch to write output
 
 		Radial = True
 		
-		blub = 0			# emergency exit for bad results
+		#blub = 0			# emergency exit for bad results
 
 		# Writing head of file for radial case ########################################################################################
 		'''
@@ -650,8 +662,39 @@ for flup in range (0,len(files)):
 				if DenCase or EmCase:
 					Startrange = SetStartrange
 					Resolution = SetResolution
+				if scalingtest:
+					# just make one step in loop! The Refdec_ind is defined within the loop again.
+					Startrange = len(x)-1
+					Resolution = 1
+
 
 				for Refdec_ind in range(Startrange, len(x),Resolution):			# Wall-region can be neglected (approximately 1.5-2cm) --> go through Refdec-Positions
+					if scalingtest and RealCase:
+						Refdec_ind = Refdec_ind_real	# is being set in Blob_params
+						print('Position of Reference Detector: {0:.2f}cm'.format(x[Refdec_ind])) # check, if Reference detector is at correct position
+					if scalingtest and BlockCase:
+					# Calculate index and position of Reference detector on xaxis (indices are counted backwards x[len(x)-1]<0!)
+						print('Reference detector has to be shifted to a position available for beam evaluation!')
+						countx=0
+						blur = 0.5
+						for g in range (0,len(x)):
+							if (x[g]<0):				# take negative values into account for correct shift
+								countx=countx+1			# number of elements, which are negative
+						Refdec_ind = len(x)-int(Refdec/blur)-1 - countx	# index for Reference detector position
+						print('Position along beam-axis for Reference Detector in Block-Case: {0:.2f}cm'.format(x[Refdec_ind])) # check, if Reference detector is at correct position
+						print('Position of Reference Detector set in Parameter-file: {0:.2f}cm'.format(Refdec)) # check, if Reference detector is at correct position
+						if (Refdec>x[0]):				# exit, if error with reference detector position occurs
+							sys.esiz = exit('Reference Detector outside of observable region')
+					if scalingtest and EmCase or DenCase and scalingtest:			# otherwise this position is determined later
+						countx=0
+						for g in range (0,len(x)):
+							if (x[g]<0):				# take negative values into account for correct shift
+								countx=countx+1			# number of elements, which are negative
+						Refdec_ind = len(x)-Refdec/0.02-1 - countx	# index for Reference detector position
+						print('Position along beam-axis for Reference Detector: {0:.2f}cm'.format(x[Refdec_ind])) # check, if Reference detector is at correct position
+						if (Refdec>x[0]):				# exit, if error with reference detector position occurs
+							sys.exit('Reference Detector outside of observable region')
+
 					if RealCase:
 						print('Position along beam-axis for Reference Detector: {0:.2f}cm'.format(x[Refdec_ind])) # check, if Reference detector is at correct position
 
@@ -675,6 +718,180 @@ for flup in range (0,len(files)):
 						X2,T2=np.meshgrid(x,time[int(t_start/avt):int(t_end/avt)]) 	# Meshgrid for timeplots:
 					#if RealCase:
 					#	X2,T2=np.meshgrid(x,timelimview) 
+
+					
+					# pdf and statistical analysis:
+
+					if statist and bcenter == beamrange[0] and x[Refdec_ind]<-0.5 and x[Refdec_ind-1]>-0.5 and not RealCase:
+						if Case == 0:
+							f5=plt.figure(figsize=(16,16), facecolor = 'white')
+							gs = gridspec.GridSpec(2, 2,			# ratio of grid space (x plots per collumn [hight], y per row [width])
+								width_ratios=[1,1],		# width ratios of the 3 plots per row
+								height_ratios=[1,1]		# height ratios of the 2 polots per collumn
+								)
+							# create axes with the ratios specified in gs above. ax5, ax6 are the axes for the colorbars:
+							ax51 = plt.subplot(gs[0])
+							ax52 = plt.subplot(gs[1])
+							ax53 = plt.subplot(gs[2])
+							ax54 = plt.subplot(gs[3])
+
+							axis = ax51
+						
+						if Case == 1:
+							axis = ax52
+						if Case == 2:
+							axis = ax53
+						if Case == 3:
+							axis = ax54
+						mus, stds = stats.norm.fit(Li2p1Z[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind])
+						axis.hist(Li2p1Z[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind],bins=50,normed = True,alpha = 0.6,color='b')
+						mus2 = np.mean(Li2p1Z[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind])
+						stds2 = np.std(Li2p1Z[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind])
+						pdfs = stats.norm.pdf(Li2p1Z[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind], mus, stds)	
+						#normalv = norm.pdf(
+						skew = stats.skew(Li2p1Z[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind])
+						kurt = stats.kurtosis(Li2p1Z[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind])
+						xp = Li2p1Z[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind]
+						yp = pdfs
+						indexs_to_order_by = xp.argsort()
+						xp_ordered = xp[indexs_to_order_by]
+						yp_ordered = yp[indexs_to_order_by]
+						if Case == 0:
+							title = r"Emission Case for r = %.2f cm" % (x[Refdec_ind])
+						if Case == 1:
+							title = r"Density Case for r = %.2f cm" % (x[Refdec_ind])
+							axis.set_xlabel('Density fluctuation $\delta n_e$ (cm$^{-3}$)')
+							axis.set_xlim(-5,5)
+						if Case == 2:
+							title = r"Block Case for r = %.2f cm" % (x[Refdec_ind])
+						if Case == 3:
+							title = r"Real Block Case for r = %.2f cm" % (x[Refdec_ind])
+						if Case !=1:
+							axis.set_xlabel('Li$_{2p}$ emission fluctuation (a.u.)')
+							axis.set_xlim(-0.05,0.05)
+
+						axis.set_ylabel('PDB')
+						anchored_text = AnchoredText("Skewness = {0:.2f}\nKurtosis = {1:.2f}".format(skew,kurt), loc=2, borderpad = 2, frameon = False)
+						axis.add_artist(anchored_text)
+						axis.set_title(title)
+						axis.plot(xp_ordered,yp_ordered, '-r', linewidth = 3)
+						
+						if Case == 3:
+							f5.savefig('{0:03d}statistics_{1:}mm'.format(Measurement, int(x[Refdec_ind]*100)))
+
+					if statist and bcenter == beamrange[0] and x[Refdec_ind]<1.5 and x[Refdec_ind-1]>1.5 and not RealCase:
+						if Case == 0:
+							f6=plt.figure(figsize=(16,16), facecolor = 'white')
+							gs = gridspec.GridSpec(2, 2,			# ratio of grid space (x plots per collumn [hight], y per row [width])
+								width_ratios=[1,1],		# width ratios of the 3 plots per row
+								height_ratios=[1,1]		# height ratios of the 2 polots per collumn
+								)
+							# create axes with the ratios specified in gs above. ax5, ax6 are the axes for the colorbars:
+							ax61 = plt.subplot(gs[0])
+							ax62 = plt.subplot(gs[1])
+							ax6x = plt.subplot(gs[2])
+							ax64 = plt.subplot(gs[3])
+
+							axis = ax61
+						
+						if Case == 1:
+							axis = ax62
+						if Case == 2:
+							axis = ax6x
+						if Case == 3:
+							axis = ax64
+						mus, stds = stats.norm.fit(Li2p1Z[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind])
+						axis.hist(Li2p1Z[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind],bins=50,normed = True,alpha = 0.6,color='b')
+						mus2 = np.mean(Li2p1Z[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind])
+						stds2 = np.std(Li2p1Z[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind])
+						pdfs = stats.norm.pdf(Li2p1Z[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind], mus, stds)	
+						#normalv = norm.pdf(
+						skew = stats.skew(Li2p1Z[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind])
+						kurt = stats.kurtosis(Li2p1Z[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind])
+						xp = Li2p1Z[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind]
+						yp = pdfs
+						indexs_to_order_by = xp.argsort()
+						xp_ordered = xp[indexs_to_order_by]
+						yp_ordered = yp[indexs_to_order_by]
+						if Case == 0:
+							title = r"Emission Case for r = %.2f cm" % (x[Refdec_ind])
+						if Case == 1:
+							title = r"Density Case for r = %.2f cm" % (x[Refdec_ind])
+							axis.set_xlabel('Density fluctuation $\delta n_e$ (cm$^{-3}$)')
+							axis.set_xlim(-5,5)
+						if Case == 2:
+							title = r"Block Case for r = %.2f cm" % (x[Refdec_ind])
+						if Case == 3:
+							title = r"Real Block Case for r = %.2f cm" % (x[Refdec_ind])
+						if Case !=1:
+							axis.set_xlabel('Li$_{2p}$ emission fluctuation (a.u.)')
+							axis.set_xlim(-0.05,0.05)
+						axis.set_ylabel('PDB')
+						anchored_text = AnchoredText("Skewness = {0:.2f}\nKurtosis = {1:.2f}".format(skew,kurt), loc=2, borderpad = 2, frameon = False)
+						axis.add_artist(anchored_text)
+						axis.set_title(title)
+						axis.plot(xp_ordered,yp_ordered, '-r', linewidth = 3)
+						
+						if Case == 3:
+							f6.savefig('{0:03d}statistics_{1:}mm'.format(Measurement, int(x[Refdec_ind]*100)))
+
+
+					if statist and bcenter == beamrange[0] and x[Refdec_ind]<3.2 and x[Refdec_ind-1]>3.2 and not RealCase :
+						if Case == 0:
+							f7=plt.figure(figsize=(16,16), facecolor = 'white')
+							gs = gridspec.GridSpec(2, 2,			# ratio of grid space (x plots per collumn [hight], y per row [width])
+								width_ratios=[1,1],		# width ratios of the 3 plots per row
+								height_ratios=[1,1]		# height ratios of the 2 polots per collumn
+								)
+							ax71 = plt.subplot(gs[0])
+							ax72 = plt.subplot(gs[1])
+							ax7x = plt.subplot(gs[2])
+							ax74 = plt.subplot(gs[3])
+
+							axis = ax71
+						
+						if Case == 1:
+							axis = ax72
+						if Case == 2:
+							axis = ax7x
+						if Case == 3:
+							axis = ax74
+						mus, stds = stats.norm.fit(Li2p1Z[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind])
+						axis.hist(Li2p1Z[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind],bins=50,normed = True,alpha = 0.6,color='b')
+						mus2 = np.mean(Li2p1Z[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind])
+						stds2 = np.std(Li2p1Z[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind])
+						pdfs = stats.norm.pdf(Li2p1Z[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind], mus, stds)	
+						#normalv = norm.pdf(
+						skew = stats.skew(Li2p1Z[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind])
+						kurt = stats.kurtosis(Li2p1Z[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind])
+						xp = Li2p1Z[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind]
+						yp = pdfs
+						indexs_to_order_by = xp.argsort()
+						xp_ordered = xp[indexs_to_order_by]
+						yp_ordered = yp[indexs_to_order_by]
+						if Case == 0:
+							title = r"Emission Case for r = %.2f cm" % (x[Refdec_ind])
+						if Case == 1:
+							title = r"Density Case for r = %.2f cm" % (x[Refdec_ind])
+							axis.set_xlabel('Density fluctuation $\delta n_e$ (cm$^{-3}$)')
+							axis.set_xlim(-5,5)
+						if Case == 2:
+							title = r"Block Case for r = %.2f cm" % (x[Refdec_ind])
+						if Case == 3:
+							title = r"Real Block Case for r = %.2f cm" % (x[Refdec_ind])
+						if Case !=1:
+							axis.set_xlabel('Li$_{2p}$ emission fluctuation (a.u.)')
+							axis.set_xlim(-0.5,0.5)
+						axis.set_ylabel('PDB')
+						anchored_text = AnchoredText("Skewness = {0:.2f}\nKurtosis = {1:.2f}".format(skew,kurt), loc=2, borderpad = 2, frameon = False)
+						axis.add_artist(anchored_text)
+						axis.set_title(title)
+						axis.plot(xp_ordered,yp_ordered, '-r', linewidth = 3)
+						
+						if Case == 3:
+							f7.savefig('{0:03d}statistics_{1:}mm'.format(Measurement, int(x[Refdec_ind]*100)))
+
+						
 
 
 					###################################################################################################################################
@@ -1272,11 +1489,12 @@ for flup in range (0,len(files)):
 								RandCount = RandCount+1	
 						right_index = int(min(PeakC))				# up index is minimum index for first time it surpasses HM
 						if (right_index>5000 or left_index==0):
-							blub==999	
-							print('blub in left/right index of tauB')			# exit analysis because of bad result
+	
+						#	print('blub in left/right index of tauB')			# exit analysis because of bad result
 						#	pdb.set_trace()
 							if not BlockCase:
 								shift_Block = 0
+							blub = 9999
 							Counterbad, blub, Delx, tau_B, Blobf,vr, rval, vdmax, vimax = write_nan(fu, shift_Block, Measurement,maxlen, NewData, Radial, WriteHeader, DenCase, EmCase, BlockCase, Counterbad, blub, t_start,t_end, x,y,Refdec_ind, shift, BlobCount, Delx, tau_B, Blobf,vr, rval, vdmax, vimax, B0, Lp, q95, Te0, Ti0, ne0, omegaCi, rhoS, endtime, LiConAvrel)
 							tau_B = 0
 							continue
@@ -1504,7 +1722,6 @@ for flup in range (0,len(files)):
 						print('Average speed of blob:{0:.1f}m/s with standard deviation of {1:.1f}m/s'.format(vr,rval))	# Average speed [m/s]
 						print('Maximum speed of blob (real data): {0:.1f}m/s'.format(vdmax))	# Maximum speed from data [m/s]
 						print('Maximum speed of blob (smoothed): {0:.1f}m/s:'.format(vimax))	# Maximum speed from smoothing [m/s]
-
 
 					###################################################################################################################################
 					########### FIGURE 2 (PART2) ######################################################################################################

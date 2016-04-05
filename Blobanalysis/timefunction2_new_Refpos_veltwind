@@ -24,6 +24,7 @@ import timeit					# for timekeeping
 from datetime import datetime			# for date and time printing in output file
 import sys					# for exiting the program if errors occur
 import pdb					# for error tracking (set_trace at right position)
+from matplotlib.offsetbox import AnchoredText
 import os.path
 
 #set for error tracking:
@@ -53,16 +54,21 @@ import os.path
 ########### READING DATA AND PRELIMINARY settings #############################################################################
 ###############################################################################################################################
 
+#use specific shots
+Measurement=111
+#shot = 29315
+shot = 29302
+
 
 # Select cases and switches ###################################################################################################
 
 # Evaluates the 'infinite' resolved beam emission, the density evaluation or the Block evaluation case
 
 
-EmCase = True 		# infinite emission case --> actually always true, since every different setting during analysis is made by if-statements with the other two cases --> can stay false
-DenCase = False				# density analysis case
+EmCase = False 		# infinite emission case --> actually always true, since every different setting during analysis is made by if-statements with the other two cases --> can stay false
+DenCase = False		# density analysis case
 BlockCase = False			# block-averaging emission case
-RealCase = False	# for reading in real emission data from ASDEX
+RealCase = True	# for reading in real emission data from ASDEX
 
 realSNR = False			# reads in SNR profile for the Block Case
 
@@ -84,6 +90,8 @@ Smooth = False			# smooth noisy data
 NoiseTime = False
 SmoothTime = False
 
+statist = True			# puts out a statistical analysis plot
+
 if BlockCase:
 	realSNR = True		# reads in SNR profile for the Block Case
 	NoiseTime = True
@@ -99,6 +107,7 @@ if RealCase:
 	Smooth = False			# smooth noisy data
 	NoiseTime = False
 	SmoothTime = False
+
 
 
 
@@ -127,7 +136,7 @@ if not NoiseTime:
 # read in data from hdf5-file via external function
 
 if not RealCase:
-	Measurement=111						# will be used for file search and in output
+						# will be used for file search and in output
 	print('Data is going to be read from file: ASDEX.{0:03d}.h5'.format(Measurement))
 	# read in data from function Li_read_hdf5: Specify correct hdf5-file
 	#time, x, y, ne, LiTemp, Li2p1, B0, Lp, q95, Te0, Ti0, ne0, omegaCi, rhoS, endtime = Li_read_hdf5('/pfs/home/bschiess/public/hesel/data/ASDEX.{0:03d}.h5'.format(Measurement))
@@ -135,8 +144,7 @@ if not RealCase:
 	# other settings and preparations  #############################################################################################
 
 if RealCase:
-	#shot = 29315
-	shot = 29302
+
 	print('Data is going to be read from file: {0:}_LiBes_signal_data.txt'.format(shot))
 	Li2p1 = np.loadtxt('/afs/ipp-garching.mpg.de/u/bschiess/Analyzetools/Li-BES GUI/{0:}_LiBes_signal_data.txt'.format(shot))
 	time = np.loadtxt('/afs/ipp-garching.mpg.de/u/bschiess/Analyzetools/Li-BES GUI/{0:}_LiBes_time_data.txt'.format(shot))
@@ -1502,7 +1510,7 @@ if (Standardblob==True and BlobCount>0):				# only occurs if switch is on and if
 			if (slope_inter[p]<0):
 				slope_inter[p]=0
 	v_imax=np.amax(slope_inter)						# find maximum slope interpolation
-	pdb.set_trace()
+	
 
 	#convert into [m/s]
 	if x[0]>x[-1]:
@@ -1560,6 +1568,126 @@ if (Standardblob==True and BlobCount>0):				# only occurs if switch is on and if
 	# ax24.set_ylim(x[-1],x[0])
 	# div24 =  make_axes_locatable(ax23)
 	# cax24 = div23.append_axes("right",size="5%",pad=0.05)
+
+	if statist and not RealCase:
+		f5=plt.figure(figsize=(16,16), facecolor = 'white')
+		gs = gridspec.GridSpec(2, 1,			# ratio of grid space (x plots per collumn [hight], y per row [width])
+			width_ratios=[1],		# width ratios of the 3 plots per row
+			height_ratios=[1,1]		# height ratios of the 2 polots per collumn
+			)
+
+		# create axes with the ratios specified in gs above. ax5, ax6 are the axes for the colorbars:
+		ax51 = plt.subplot(gs[0])
+		ax52 = plt.subplot(gs[1])
+
+		mus, stds = stats.norm.fit(Li2p1Z[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind])
+		ax51.hist(Li2p1Z[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind],bins=50,normed = True,alpha = 0.6,color='b')
+		mus2 = np.mean(Li2p1Z[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind])
+		stds2 = np.std(Li2p1Z[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind])
+		pdfs = stats.norm.pdf(Li2p1Z[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind], mus, stds)	
+		#normalv = norm.pdf(
+		skew = stats.skew(Li2p1Z[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind])
+		kurt = stats.kurtosis(Li2p1Z[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind])
+		xp = Li2p1Z[int(t_start/avt):int(t_end/avt),shift*2,Refdec_ind]
+		yp = pdfs
+		indexs_to_order_by = xp.argsort()
+		xp_ordered = xp[indexs_to_order_by]
+		yp_ordered = yp[indexs_to_order_by]
+		title = r"r = {0:.2f}cm".format(x[Refdec_ind])
+		anchored_text = AnchoredText("Skewness = {0:.2f}\nKurtosis = {1:.2f}".format(skew,kurt), loc=2, borderpad = 2, frameon = False)
+		ax51.add_artist(anchored_text)
+		ax51.set_title(title)
+		ax51.plot(xp_ordered,yp_ordered, '-r')
+
+	if statist and RealCase:
+		smallview = False
+		bigview = True
+		if smallview:
+			view4 = Li2p1Z[view_ind_s:view_ind_e,4]
+			view8 = Li2p1Z[view_ind_s:view_ind_e,8]
+			view12 = Li2p1Z[view_ind_s:view_ind_e,12]
+		if bigview:
+			view4 = Li2p1Z[indizes_beam_on,4]
+			view8 = Li2p1Z[indizes_beam_on,8]
+			view12 = Li2p1Z[indizes_beam_on,12]
+		f5=plt.figure(figsize=(20,6), facecolor = 'white')
+		gs = gridspec.GridSpec(1, 3,			# ratio of grid space (x plots per collumn [hight], y per row [width])
+			width_ratios=[1,1,1],		# width ratios of the 3 plots per row
+			height_ratios=[1]		# height ratios of the 2 polots per collumn
+			)
+		matplotlib.rcParams.update({'font.size': 12})
+		# create axes with the ratios specified in gs above. ax5, ax6 are the axes for the colorbars:
+		ax51 = plt.subplot(gs[0])
+		ax52 = plt.subplot(gs[1])
+		ax53 = plt.subplot(gs[2])
+
+		pdb.set_trace()
+	
+		#looks only at the small time window...
+		mus51, stds51 = stats.norm.fit(view4)
+		ax51.hist(view4,bins=50,normed = True,alpha = 0.6,color='b')
+		mus512 = np.mean(view4)
+		stds512 = np.std(view4)
+		pdfs51 = stats.norm.pdf(view4, mus51, stds51)	
+		#normalv = norm.pdf(
+		skew51 = stats.skew(view4)
+		kurt51 = stats.kurtosis(view4)
+		xp51 = view4
+		yp51 = pdfs51
+		indexs_to_order_by = xp51.argsort()
+		xp51_ordered = xp51[indexs_to_order_by]
+		yp51_ordered = yp51[indexs_to_order_by]
+		ax51.set_xlim(-0.5,0.5)
+		title = r"#{0:} for r = {1:.2f}cm".format(shot, -(x[4]-7.37))
+		ax51.set_title(title)
+		anchored_text = AnchoredText("Skewness = {0:.2f}\nKurtosis = {1:.2f}".format(skew51,kurt51), loc=2,  frameon = False)
+		ax51.add_artist(anchored_text)
+		ax51.plot(xp51_ordered,yp51_ordered, '-r', linewidth = 3)
+
+		mus52, stds52 = stats.norm.fit(Li2p1Z[indizes_beam_on, 8])
+		ax52.hist(Li2p1Z[indizes_beam_on, 8],bins=50,normed = True,alpha = 0.6,color='b')
+		mus522 = np.mean(Li2p1Z[indizes_beam_on, 8])
+		stds522 = np.std(Li2p1Z[indizes_beam_on, 8])
+		pdfs52 = stats.norm.pdf(Li2p1Z[indizes_beam_on, 8], mus52, stds52)	
+		#normalv = norm.pdf(
+		skew52 = stats.skew(Li2p1Z[indizes_beam_on, 8])
+		kurt52 = stats.kurtosis(Li2p1Z[indizes_beam_on, 8])
+		xp52 = Li2p1Z[indizes_beam_on, 8]
+		yp52 = pdfs52
+		indexs_to_order_by = xp52.argsort()
+		xp52_ordered = xp52[indexs_to_order_by]
+		yp52_ordered = yp52[indexs_to_order_by]
+		title = r"#{0:} for r = {1:.2f}cm".format(shot, -(x[8]-7.37))
+		ax52.set_xlim(-0.5,0.5)
+		ax52.set_title(title)
+		anchored_text = AnchoredText("Skewness = {0:.2f}\nKurtosis = {1:.2f}".format(skew52,kurt52), loc=2,  frameon = False)
+		ax52.add_artist(anchored_text)
+		ax52.plot(xp52_ordered,yp52_ordered, '-r', linewidth = 3)
+		
+		mus53, stds53 = stats.norm.fit(Li2p1Z[indizes_beam_on, 12])
+		ax53.hist(Li2p1Z[indizes_beam_on, 12],bins=50,normed = True,alpha = 0.6,color='b')
+		mus532 = np.mean(Li2p1Z[indizes_beam_on, 12])
+		stds532 = np.std(Li2p1Z[indizes_beam_on, 12])
+		pdfs53 = stats.norm.pdf(Li2p1Z[indizes_beam_on, 12], mus53, stds53)	
+		#normalv = norm.pdf(
+		skew53 = stats.skew(Li2p1Z[indizes_beam_on, 12])
+		kurt53 = stats.kurtosis(Li2p1Z[indizes_beam_on, 12])
+		xp53 = Li2p1Z[indizes_beam_on, 12]
+		yp53 = pdfs53
+		ax53.set_xlim(-0.5,0.5)
+		indexs_to_order_by = xp53.argsort()
+		xp53_ordered = xp53[indexs_to_order_by]
+		yp53_ordered = yp53[indexs_to_order_by]
+		title = r"#{0:} for r = {1:.2f}cm".format(shot, -(x[12]-7.37))
+		ax53.set_title(title)
+		anchored_text = AnchoredText("Skewness = {0:.2f}\nKurtosis = {1:.2f}".format(skew53,kurt53), loc=2,  frameon = False)
+		ax53.add_artist(anchored_text)
+		ax53.plot(xp53_ordered,yp53_ordered, '-r', linewidth = 3)
+		if smallview:
+			f5.savefig('{0:}statistics_smallview'.format(shot))
+		if bigview:
+			f5.savefig('{0:}statistics_bigview'.format(shot))
+
 
 ###################################################################################################################################
 ########### PRINT TO FILE - OUTPUT STATEMENST #####################################################################################
